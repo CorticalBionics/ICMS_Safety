@@ -1,0 +1,27 @@
+Manual TDMS compression
+
+**NOTE** Use for files that could not be compressed through the
+automated method.  
+
+STEPS:
+1.  Open Up target TDMS file via excel
+2.  Manually delete (AI) channels that do not contain any useful data
+3.  Modify the main sheet so that its consistant with the changes you have made
+4.  Save each excel sheet seperately in an independent folder as a txt MS-Doc file.
+      4a.  You need to save the first excel sheet as 'Main.txt'
+      4b.  Each successive sheet must be saved by its respective group name.
+
+**** Check ****
+By the end of step 4, you should have a new folder containing text files of each excel sheet
+that are titled:
+     a. Main.txt
+     b. Config_Mod.txt
+     c. Untitled.txt
+     d. Digital Event.txt
+     e. Config_Chan.txt
+****************
+
+At this point, you are ready to run Manual_TDMScompress.vi
+
+
+
