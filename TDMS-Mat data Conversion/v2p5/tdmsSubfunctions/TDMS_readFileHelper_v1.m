@@ -181,11 +181,13 @@ for iSeg = 1:numSegs
         Stag = fread(fid,1,'uint8');
         mtag = fread(fid,1,'uint8');
         if ~(Ttag == 84 && Dtag == 68 && Stag == 83 && mtag == 109)
-            error('Catastrophic error detected, code probably has an error somewhere')
+            data = cell(1,numObjects);
+            warning('Catastrophic error detected, code probably has an error somewhere')
         end
     else
         if eofPosition ~= ftell(fid) && ~metaStruct.eof_error
-            error('Catastrophic error detected, code probably has an error somewhere')
+            data = cell(1,numObjects);
+            warning('Catastrophic error detected, code probably has an error somewhere')
         end
     end
 end
@@ -193,7 +195,8 @@ end
 %ERROR CHECKING ON # OF VALUES READ
 %==========================================================================
 if ~isequal(numValuesToGetActual,curDataIndex)
-    error('The # of requested values does not equal the # of returned values, error in code likely')
+    data = cell(1,numObjects);
+    warning('The # of requested values does not equal the # of returned values, error in code likely')
 end
 
 %END OF READING RAW DATA

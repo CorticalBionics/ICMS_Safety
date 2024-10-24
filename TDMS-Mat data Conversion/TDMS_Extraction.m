@@ -1,6 +1,10 @@
 % Convert TDMS data
-addpath(genpath('C:\GitHub\analysis\LongitudinalICMS\TDMS-Mat data Conversion'))
-tld = 'C:\Users\somlab\Downloads\CRS02bHome.data.00013';
+addpath(genpath('C:\git\LongitudinalICMS\TDMS-Mat data Conversion'))
+addpath(genpath('P:\users\tgh28\ChartWithCharles'))
+addpath 'C:\git\climber\src\Common\Matlab'
+addpath(genpath('C:\git\rtma'))
+
+tld = 'P:\data_raw\human\crs_array\CRS02b\OpenLoopStim';
 output_folder = 'blah';
 
 flist = dir(tld);
