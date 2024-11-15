@@ -103,7 +103,7 @@ ignorelist = {'ACKNOWLEDGE', 'AJA_CONFIG', 'CERESTIM_ALIVE', 'CERESTIM_CONFIG_CH
 % Loop through list of tdms files on each iteration to process
 msg = '';
 for TDMSfile_num = 1:length(tdmsfiles)
-    msg = InlineProgressBar('Loading TDMS file %d/%d', [f,length(tdmsfiles)], msg);
+    % msg = InlineProgressBar('Loading TDMS file %d/%d', [TDMSfile_num, length(tdmsfiles)], msg);
     % fprintf('Processing TDMSfile %s\n\t\t File number:\t %d of %d \n',tdmsfiles{TDMSfile_num}, TDMSfile_num,length(tdmsfiles));
     filename       = fullfile(input_dir, tdmsfiles{TDMSfile_num});
     savefile       = fullfile(savedir, tdmsfiles{TDMSfile_num});
