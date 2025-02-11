@@ -3,12 +3,15 @@ source_folder = 'T:\SessionData';
 target_folder = 'U:\UserFolders\CharlesGreenspon\BCI_DetectionThresholds\Data';
 
 location = 'Chicago';
-subject_session = {'BCI02', 881; ...
-                   'BCI03', 201}; 
+subject_session = {'BCI02', 900; ...
+                   'BCI03', 201; ...
+                   'CRS02b', 0; ...
+                   'CRS07', 0; ...
+                   'CRS08', 0}; 
 
 response_table_format = [["Trial", "double"]; ...
                          ["Amplitude", "double"]; ...
-                         ["Frequency", "double"]; ...5
+                         ["Frequency", "double"]; ...
                          ["Duration", "double"]; ...
                          ["SelectedInt", "double"]; ...
                          ["Correct", "logical"]];
@@ -64,56 +67,29 @@ for s = 1:size(subject_session,1)
         end
         OLSData = OLSData(dt_idx);
 
-        % Make trial table
+        % Process each set
         for set_idx = 1:size(OLSData,1)
             if isa(OLSData(set_idx).SDO, 'cell')
                 continue
             end
             OLSData(set_idx).Channel = OLSData(set_idx).SDO(1).channel;
-            OLSData(set_idx).Date = OLSData(set_idx).SDO(1).sessionInfo.date;
-            response_table = table('Size',[size(OLSData(set_idx).SDO,1), size(response_table_format,1)],... 
-                                   'VariableNames', response_table_format(:,1),...
-                                   'VariableTypes', response_table_format(:,2));
-            % Table when using old detection tab
+            OLSData(set_idx).Date = OLSData(set_idx).SDO(1).sessionInfo.date; 
+            % Old
             if strcmp(OLSData(set_idx).DataType, 'DetectionData')
-                for t = 1:size(OLSData(set_idx).SDO,1)
-                    response_table{t, "Trial"} = t;
-                    response_table{t, "Amplitude"} = OLSData(set_idx).SDO(t).amplitude;
-                    response_table{t, "Frequency"} = OLSData(set_idx).SDO(t).frequency;
-                    response_table{t, "Duration"} = OLSData(set_idx).SDO(t).duration;
-                    if isempty(OLSData(set_idx).SDO(t).reportedData.stimulusInterval)
-                        response_table{t, "SelectedInt"} = NaN;
-                    else
-                        response_table{t, "SelectedInt"} = OLSData(set_idx).SDO(t).reportedData.stimulusInterval;
-                        response_table{t, "Correct"} = OLSData(set_idx).SDO(t).success;
-                    end
-                end
                 OLSData(set_idx).ResponseTable = response_table;
                 OLSData(set_idx).Threshold = OLSData(set_idx).SDO(end).threshold;
                 OLSData(set_idx).Method = 'OldTransformedStaircase';
 
-            % Table when using new detection tab
+            % New
             elseif strcmp(OLSData(set_idx).DataType, 'DetectionV2Data')
                 if ~isfield(OLSData(set_idx).SDO(1), 'DetectionParadigm') || isempty(OLSData(set_idx).SDO(1).DetectionParadigm)
                     continue
-                end
-                for t = 1:size(OLSData(set_idx).SDO,1)
-                    response_table{t, "Trial"} = t;
-                    response_table{t, "Amplitude"} = OLSData(set_idx).SDO(t).amplitude;
-                    response_table{t, "Frequency"} = OLSData(set_idx).SDO(t).frequency;
-                    response_table{t, "Duration"} = OLSData(set_idx).SDO(t).duration;
-                    if ~isfield(OLSData(set_idx).SDO(t).reportedData, 'value')
-                        response_table{t, "SelectedInt"} = NaN;
-                    else
-                        response_table{t, "SelectedInt"} = OLSData(set_idx).SDO(t).reportedData.value;
-                        response_table{t, "Correct"} = OLSData(set_idx).SDO(t).DetectionLogit;
-                    end
                 end
                 OLSData(set_idx).ResponseTable = response_table;
                 OLSData(set_idx).Threshold = OLSData(set_idx).SDO(end).DetectionThreshold;
                 OLSData(set_idx).Method = OLSData(set_idx).SDO(1).DetectionParadigm;
             else
-                break
+                error('Invalid DataType')
             end
         end
         OLSData = rmfield(OLSData, {'SDO', 'DataType'});
@@ -126,8 +102,8 @@ for s = 1:size(subject_session,1)
     end
 end
 %%
+data_added = true(size(subject_session,1),1);
 if any(data_added)
-    todays_date = datenum(datetime('today'));
     for s = 1:size(subject_session,1)
         if ~data_added(s)
             continue % Only update subjects that have new data
@@ -165,15 +141,23 @@ if any(data_added)
             if any(strcmp(fieldnames(OLSData), 'Paradigm'))
                 OLSData = rmfield(OLSData, {'Paradigm', 'TestLogComments', 'VMData'});
             end
+            % Orient structure
+            if size(OLSData,2) > size(OLSData,1)
+                OLSData = OLSData'; 
+            end
+            % Only add ones with the 'method' tag as these were formatted properly
             if any(strcmp(fieldnames(OLSData), 'Method'))
                 RawDetectionData(size(RawDetectionData,1):size(RawDetectionData,1)+size(OLSData,1)-1,1) = OLSData;
+            else
+                warning(fullfile(target_folder, subject_session{s,1}, subject_session_data(i).name))
             end
         end
         % Remove empties
         RawDetectionData = RawDetectionData(~cellfun(@isempty, {RawDetectionData.Date}) &...
                                                     ~cellfun(@isempty, {RawDetectionData.Threshold}) &...
                                                     ~strcmp({RawDetectionData.Threshold}, 'undetermined'));
-        % Fix floor and ceiling errors
+        
+        % Fix floor and ceiling issues
         char_idx = cellfun(@ischar, {RawDetectionData.Threshold});
         lesser_idx = contains({RawDetectionData(char_idx).Threshold}, '<');
         if any(lesser_idx)
@@ -189,53 +173,11 @@ if any(data_added)
             zero_idx = find(char_idx);
             zero_idx = zero_idx(greater_idx);
             for j = 1:length(zero_idx)
-                RawDetectionData(zero_idx(j)).Threshold = 100;
+                RawDetectionData(zero_idx(j)).Threshold = Inf; % Above == Inf
             end
         end
         
         % Save the raw data
         save(fullfile(target_folder, subject_session{s,1}, sprintf('DetectionDataRaw_%s.mat', subject_session{s,1})), 'RawDetectionData')
-
-        % Process it by channel - single channel only
-        sc_idx = cellfun(@length, {RawDetectionData.Channel});
-        RawDetectionData = RawDetectionData(sc_idx == 1);
-        u_channels = unique([RawDetectionData.Channel]);
-        for c = 1:length(u_channels)
-            channel_idx = find([RawDetectionData.Channel] == u_channels(c) & ~cellfun(@isempty, {RawDetectionData.Date}));
-            % This should already be sorted but just in case
-            [dates, sort_idx] = sort(cellfun(@datenum, {RawDetectionData(channel_idx).Date}, 'UniformOutput', true)); 
-            channel_idx_sorted = channel_idx(sort_idx);
-            % Assign to struct
-            ProcessedDetectionData(c).Subject = subject_session{s,1};
-            ProcessedDetectionData(c).Channel = u_channels(c);
-            ProcessedDetectionData(c).Dates = {RawDetectionData(channel_idx_sorted).Date};
-            ProcessedDetectionData(c).Thresholds = [RawDetectionData(channel_idx_sorted).Threshold];
-            ProcessedDetectionData(c).MeanThreshold = mean(ProcessedDetectionData(c).Thresholds);
-            ProcessedDetectionData(c).StdThreshold = std(ProcessedDetectionData(c).Thresholds);
-            ProcessedDetectionData(c).LastThreshold = ProcessedDetectionData(c).Thresholds(end);
-            if todays_date - dates(end) < 90
-                ProcessedDetectionData(c).TestedLast90Days = true;
-            else
-                ProcessedDetectionData(c).TestedLast90Days = false;
-            end
-        end
-
-        % Save the processed data
-        save(fullfile(target_folder, subject_session{s,1}, sprintf('DetectionDataProcessed_%s.mat', subject_session{s,1})), 'ProcessedDetectionData')
     end
 end
-
-if any(data_added)
-    subject_folders = dir(target_folder);
-    subject_data = cell(size(subject_folders,1),1);
-    for s = 3:size(subject_folders,1)-1
-        temp = load(fullfile(target_folder, subject_folders(s).name, sprintf('DetectionDataProcessed_%s.mat', subject_folders(s).name)));
-        subject_data{s} = temp.ProcessedDetectionData;
-    end
-    DetectionDataAll = cat(2, subject_data{3:end});
-
-    save(fullfile(target_folder, 'DetectionDataAll'), 'DetectionDataAll')
-end
-
-
-
