@@ -11,6 +11,7 @@ end
 
 % Load raw structs and process
 subject_structs = cell(length(subjects), 1);
+max_days = 0;
 for s = 1:length(subjects)
     fname = sprintf('DetectionDataRaw_%s.mat', subjects{s});
     load(fullfile(tld, subjects{s}, fname))
@@ -46,29 +47,128 @@ for s = 1:length(subjects)
     end
     subject_structs{s} = formatted_struct;
 
+    % Check max days
+    subj_max_days = max(cellfun(@max, {formatted_struct.DateFromImplant}));
+    if subj_max_days > max_days
+        max_days = subj_max_days;
+    end
+
     % Count total detection threshold measurements
-    disp(subjects{s})
     ndt = cellfun(@length, {formatted_struct.Threshold});
-    fprintf('\t%d total DTs (%0.1f %s %0.1f)\n', sum(ndt), mean(ndt), GetUnicodeChar("PlusMinus"), std(ndt))
+    fprintf('%s: %d total DTs (%0.1f %s %0.1f)\n', ...
+        subjects{s}, sum(ndt), mean(ndt), GetUnicodeChar("PlusMinus"), std(ndt))
 end
 
-clearvars -except subject_structs
+clearvars -except subject_structs max_days
 subjects = {'C1', 'C2', 'P2', 'P3', 'P4'};
+num_channels = 64;
 
-%% Some plots
-s = 3;
+%% Analyze
+dw = 100; % Bin width in days
+max_days = ceil(max_days/ dw) * dw; % Max days
+de = 0 : dw : max_days; % Day edges
+dx = de(1:end-1) + (dw/2); % Day center
+t_max = 90;
+
+[discretized_thresholds, disabled_electrodes] = deal(cell(length(subjects), 1));
+for s = 1:length(subjects)
+    % Format data
+    % num_channels = size(subject_structs{s}, 2);
+    % Date, threshold, channel
+    [d, t] = deal(cell(num_channels, 1));
+    enabled_channels = true(num_channels, length(dx));
+    for i = 1:num_channels
+        ch_idx = find([subject_structs{s}.Channel] == i);
+        if isempty(ch_idx) % Skip untested channels
+            continue
+        end
+        d{i} = subject_structs{s}(ch_idx).DateFromImplant;
+        t{i} = subject_structs{s}(ch_idx).Threshold;
+        
+        % Find the last value with threshold below 'threshold'
+        for j = 1:length(dx)
+            idx = d{i} > de(j) & d{i} <= de(j+1);
+            % If no thresholds, assume disabled
+            if sum(idx) == 0
+                enabled_channels(i,j) = false;
+            elseif median(t{i}(idx)) > t_max
+                enabled_channels(i,j) = false;
+            end
+        end
+    end
+    disabled_electrodes{s} = enabled_channels;
+
+    % Vectorize
+    d = cat(2, d{:});
+    t = round(cat(2, t{:}));
+    
+    % Discretize
+    dv = cell(size(dx)); % Thresholds in each bin
+    for i = 1:length(dx)
+        dv{i} = t(d > de(i) & d <= de(i+1));
+        dv{i}(isinf(dv{i})) = NaN;
+    end
+    discretized_thresholds{s} = dv;
+end
+
+%% Plot
 clf; 
-h = 3; w = 1;
+set(gcf, 'Units', 'Inches', 'Position', [31 1 10 4])
+
+% Detection thresholds
+axes('Position', [.1 .2 .35 .7]); hold on    
+    for s = 1:length(subjects)
+        AlphaLine(dx, discretized_thresholds{s}, SubjectColors(subjects{s}), 'LineWidth', 2, 'IgnoreNan', 1)
+    end
+    
+    
+    % Format
+    fmt = 'linear';
+    if strcmpi(fmt, 'log')
+        set(gca, 'XLim', [50 4000], ...
+                 'YLim', [0 100], ...
+                 'XScale', 'log')
+    elseif strcmpi(fmt, 'linear')
+        set(gca, 'XLim', [0 4000], ...
+                 'YLim', [0 100], ...
+                 'XScale', 'linear')
+    end
+    
+    text(4000, 100, ColorText(subjects, SubjectColors(subjects)), ...
+        'HorizontalAlignment', 'right', 'VerticalAlignment', 'top')
+    
+    ylabel(sprintf('Detection Threshold (%sA)', GetUnicodeChar('mu')))
+        xlabel('Days From Implant')
+
+% Disabled electrodes?
+axes('Position', [.55 .2 .35 .7]); hold on
+
+
+shg
+
+
+return
+
+%% Individual participant raster + line plots
+s = 4;
+h = 2; w = 2;
+
+clf; 
+set(gcf, 'Units', 'Inches', 'Position', [31 1 15 8])
+
 % Raster plot of threshold
 subplot(h,w,1); hold on
     % Format data
-    num_channels = size(subject_structs{s}, 2);
     % Date, threshold, channel
     [d, t, c] = deal(cell(num_channels, 1));
     for i = 1:num_channels
-        c{i} = repelem(subject_structs{s}(i).Channel, length(subject_structs{s}(i).Dates));
-        d{i} = subject_structs{s}(i).DateFromImplant;
-        t{i} = subject_structs{s}(i).Threshold;
+        ch_idx = find([subject_structs{s}.Channel] == i);
+        if isempty(ch_idx) % Skip untested channels
+            continue
+        end
+        c{i} = repelem(subject_structs{s}(ch_idx).Channel, length(subject_structs{s}(ch_idx).Dates));
+        d{i} = subject_structs{s}(ch_idx).DateFromImplant;
+        t{i} = subject_structs{s}(ch_idx).Threshold;
     end
     % Vectorize
     c = cat(2, c{:});
@@ -84,7 +184,7 @@ subplot(h,w,1); hold on
         y = c(it_idx);
     
         % Set inf to black otherwise use cmap
-        if isinf(ut(i))
+        if isinf(ut(i)) || isnan(ut(i))
             col = [0,0,0];
         else
             col = cmap(i,:);
@@ -100,89 +200,42 @@ subplot(h,w,1); hold on
         % Plot
         plot(x_vec, y_vec, 'Color', col, 'LineWidth', 2)
     end
-    set(gca, 'YLim', [.5 num_channels+.5])
+    set(gca, 'YLim', [.5 num_channels+.5], 'XLim', [0 max_days])
     ylabel('Electrode')
+    xlabel('Days From Implant')
 
-p = get(gca, 'Position');
-pw = 0.25;
-px = p(1) + p(3) - pw;
-py = p(2) + p(4) + 0.035;
-cb = ColorbarLegend(gcf, [px, py, pw 0.0125], cmap, 'Horz', [0 100]);
+% Colorbar legend 
+    p = get(gca, 'Position');
+    pw = 0.125;
+    px = p(1) + p(3) - pw;
+    py = p(2) + p(4) + 0.035;
+    cb = ColorbarLegend(gcf, [px, py, pw 0.0125], cmap, 'Horz', [0 100]);
 
-% Line plot
+
+% Enabled/disabled
+subplot(h,w,3);
+    imagesc(dx, 1:num_channels, disabled_electrodes{s})
+    set(gca, 'YDir', 'normal')
+
+% Individual electrodes detection thresholds
 subplot(h,w,2); hold on
     for i = 1:num_channels
-        plot(subject_structs{s}(i).DateFromImplant, subject_structs{s}(i).Threshold, 'Color', [.6 .6 .6])
+        ch_idx = find([subject_structs{s}.Channel] == i);
+        if isempty(ch_idx) % Skip untested channels
+            continue
+        end
+        plot(subject_structs{s}(ch_idx).DateFromImplant, subject_structs{s}(ch_idx).Threshold, 'Color', [.6 .6 .6])
     end
-
-    ylabel(sprintf('Detection Threshold (%sA)', GetUnicodeChar('mu')))
-
-
-% Line plot
-subplot(h,w,3); hold on
-    dw = 100;
-    dm = ceil(max(d) / dw) * dw;
-    de = 0 : dw : dm;
-
-    dx = de(1:end-1) + (dw/2);
-    dv = cell(size(dx));
-    for i = 1:length(dx)
-        dv{i} = t(d > de(i) & d <= de(i+1));
-        dv{i}(isinf(dv{i})) = NaN;
-    end
-    AlphaLine(dx, dv, [.6 .6 .6], 'LineWidth', 2, 'IgnoreNan', 1)
 
     ylabel(sprintf('Detection Threshold (%sA)', GetUnicodeChar('mu')))
     xlabel('Days From Implant')
 
-shg
 
-%% Across participant
-clf; 
-set(gcf, 'Units', 'Inches', 'Position', [31 1 5 4])
-axes('Position', [.15 .2 .75 .7]); hold on
-dw = 100;
+% Summary detection threshold
+subplot(h,w,4); hold on
+    AlphaLine(dx, discretized_thresholds{s}, SubjectColors(subjects{s}), 'LineWidth', 2, 'IgnoreNan', 1)
 
-for s = 1:length(subjects)
-    % Format data
-    num_channels = size(subject_structs{s}, 2);
-    % Date, threshold, channel
-    [d, t, c] = deal(cell(num_channels, 1));
-    for i = 1:num_channels
-        c{i} = repelem(subject_structs{s}(i).Channel, length(subject_structs{s}(i).Dates));
-        d{i} = subject_structs{s}(i).DateFromImplant;
-        t{i} = subject_structs{s}(i).Threshold;
-    end
-
-    % Vectorize
-    c = cat(2, c{:});
-    d = cat(2, d{:});
-    t = round(cat(2, t{:}));
-    
-    % Discretize
-    dm = ceil(max(d) / dw) * dw;
-    de = 0 : dw : dm;
-    dx = de(1:end-1) + (dw/2);
-    dv = cell(size(dx));
-    for i = 1:length(dx)
-        dv{i} = t(d > de(i) & d <= de(i+1));
-        dv{i}(isinf(dv{i})) = NaN;
-    end
-
-    % Plot
-    AlphaLine(dx, dv, SubjectColors(subjects{s}), 'LineWidth', 2, 'IgnoreNan', 1)
-end
-
-
-% Format
-set(gca, 'XLim', [50 4000], ...
-         'YLim', [0 100], ...
-         'XScale', 'log')
-
-text(4000, 100, ColorText(subjects, SubjectColors(subjects)), ...
-    'HorizontalAlignment', 'right', 'VerticalAlignment', 'top')
-
-ylabel(sprintf('Detection Threshold (%sA)', GetUnicodeChar('mu')))
+    ylabel(sprintf('Detection Threshold (%sA)', GetUnicodeChar('mu')))
     xlabel('Days From Implant')
 
 shg
