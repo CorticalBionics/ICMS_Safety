@@ -11,6 +11,7 @@ end
 
 % Load raw structs and process
 subject_structs = cell(length(subjects), 1);
+subj_max_days = zeros(size(subject_structs));
 max_days = 0;
 for s = 1:length(subjects)
     fname = sprintf('DetectionDataRaw_%s.mat', subjects{s});
@@ -48,10 +49,7 @@ for s = 1:length(subjects)
     subject_structs{s} = formatted_struct;
 
     % Check max days
-    subj_max_days = max(cellfun(@max, {formatted_struct.DateFromImplant}));
-    if subj_max_days > max_days
-        max_days = subj_max_days;
-    end
+    subj_max_days(s) = max(cellfun(@max, {formatted_struct.DateFromImplant}));
 
     % Count total detection threshold measurements
     ndt = cellfun(@length, {formatted_struct.Threshold});
@@ -59,13 +57,13 @@ for s = 1:length(subjects)
         subjects{s}, sum(ndt), mean(ndt), GetUnicodeChar("PlusMinus"), std(ndt))
 end
 
-clearvars -except subject_structs max_days
+clearvars -except subject_structs subj_max_days
 subjects = {'C1', 'C2', 'P2', 'P3', 'P4'};
 num_channels = 64;
 
 %% Analyze
-dw = 100; % Bin width in days
-max_days = ceil(max_days/ dw) * dw; % Max days
+dw = 250; % Bin width in days
+max_days = ceil(max(subj_max_days)/ dw) * dw; % Max days
 de = 0 : dw : max_days; % Day edges
 dx = de(1:end-1) + (dw/2); % Day center
 t_max = 90;
@@ -76,7 +74,7 @@ for s = 1:length(subjects)
     % num_channels = size(subject_structs{s}, 2);
     % Date, threshold, channel
     [d, t] = deal(cell(num_channels, 1));
-    enabled_channels = true(num_channels, length(dx));
+    enabled_channels = NaN(num_channels, length(dx));
     for i = 1:num_channels
         ch_idx = find([subject_structs{s}.Channel] == i);
         if isempty(ch_idx) % Skip untested channels
@@ -87,12 +85,17 @@ for s = 1:length(subjects)
         
         % Find the last value with threshold below 'threshold'
         for j = 1:length(dx)
+            if dx(j) > subj_max_days(s)
+                break
+            end
             idx = d{i} > de(j) & d{i} <= de(j+1);
             % If no thresholds, assume disabled
             if sum(idx) == 0
-                enabled_channels(i,j) = false;
+                enabled_channels(i,j) = 0;
             elseif median(t{i}(idx)) > t_max
-                enabled_channels(i,j) = false;
+                enabled_channels(i,j) = 0;
+            else
+                enabled_channels(i,j) = 1;
             end
         end
     end
@@ -114,7 +117,6 @@ end
 %% Plot
 clf; 
 set(gcf, 'Units', 'Inches', 'Position', [31 1 10 4])
-
 % Detection thresholds
 axes('Position', [.1 .2 .35 .7]); hold on    
     for s = 1:length(subjects)
@@ -150,11 +152,14 @@ shg
 return
 
 %% Individual participant raster + line plots
-s = 4;
+s = 1;
 h = 2; w = 2;
 
 clf; 
 set(gcf, 'Units', 'Inches', 'Position', [31 1 15 8])
+annotation("textbox", [.05 .85 .1 .1], 'String', ...
+    ColorText(subjects(s), SubjectColors(subjects(s))), ...
+    'EdgeColor', 'none', 'FontSize', 24)
 
 % Raster plot of threshold
 subplot(h,w,1); hold on
@@ -214,7 +219,7 @@ subplot(h,w,1); hold on
 
 % Enabled/disabled
 subplot(h,w,3);
-    imagesc(dx, 1:num_channels, disabled_electrodes{s})
+    imagesc(dx, 1:num_channels, disabled_electrodes{s}, 'alphadata', ~isnan(disabled_electrodes{s}))
     set(gca, 'YDir', 'normal')
 
 % Individual electrodes detection thresholds

@@ -1,7 +1,7 @@
 % Count the number of pulses
 num_electrodes = 64;
 data_path = "T:\SessionData";
-output_path = "U:\UserFolders\CharlesGreenspon\BCI_LongLongICMS\VM_Info";
+output_path = fullfile(DataPath, "VM_Info");
 subject_ids = {'BCI02', 'BCI03'};
 temp = table('Size', [1, 4], ...
     'VariableNames', {'Subject', 'Date', 'PulseCount', 'CurrentCount'}, ...
@@ -65,8 +65,19 @@ data = cell(length(flist), 1);
 
 for f = 1:length(flist)
     temp = load(fullfile(output_path, flist(f).name));
+    % Fix dates if not logged properly
+    if isnat(temp.data.Date)
+        fsplit = strsplit(flist(f).name, '_');
+        temp.data.Date = datetime([fsplit{5}(1:end-4), fsplit{3}, fsplit{4}], 'InputFormat', 'yyyyMMdd');
+    end
+    
+    % Remove location
+    if length(temp.data.Subject{1}) > 5
+        temp.data.Subject{1} = temp.data.Subject{1}(1:5);
+    end
+
     data{f} = temp.data;
 end
 data = cat(1, data{:});
 
-save(fullfile(output_path, 'VMData_All'), "data")
+save(fullfile(DataPath, 'VMData_All'), "data")
