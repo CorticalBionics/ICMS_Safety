@@ -4,7 +4,7 @@ data_path = "T:\SessionData";
 output_path = fullfile(DataPath, "VM_Info");
 subject_ids = {'BCI02', 'BCI03'};
 temp = table('Size', [1, 4], ...
-    'VariableNames', {'Subject', 'Date', 'PulseCount', 'CurrentCount'}, ...
+    'VariableNames', {'Subject', 'Date', 'PulseCount', 'CurrentCount', 'Waveforms'}, ...
     'VariableTypes', ["string", "datetime", "cell", "cell"]);
 for s = 1:length(subject_ids)
     % Get contents of voltage monitor directory
@@ -34,6 +34,7 @@ for s = 1:length(subject_ids)
 
         % create vector for number of pulses and total amplitude
         [num_pulses, total_current] = deal(zeros(num_electrodes, 1));
+        ch_waveforms = cell(num_electrodes, 1);
         % Running count
         for i = 1:length(VMData)
             for c = 1:length(VMData(i).Channels)
@@ -53,6 +54,7 @@ for s = 1:length(subject_ids)
         data{1, "Date"} = dn;
         data{1, "PulseCount"} = {num_pulses};
         data{1, "CurrentCount"} = {total_current};
+        data{1, "Waveforms"} = {ch_waveforms};
         
         % Export
         save(fullfile(output_path, expected_fname), "data")

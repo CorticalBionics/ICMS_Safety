@@ -66,7 +66,7 @@ dw = 250; % Bin width in days
 max_days = ceil(max(subj_max_days)/ dw) * dw; % Max days
 de = 0 : dw : max_days; % Day edges
 dx = de(1:end-1) + (dw/2); % Day center
-t_max = 90;
+t_max = 90; % Threshold over which to assume disabled
 
 [discretized_thresholds, disabled_electrodes] = deal(cell(length(subjects), 1));
 for s = 1:length(subjects)
@@ -91,7 +91,7 @@ for s = 1:length(subjects)
             idx = d{i} > de(j) & d{i} <= de(j+1);
             % If no thresholds, assume disabled
             if sum(idx) == 0
-                enabled_channels(i,j) = 0;
+                enabled_channels(i,j) = NaN;
             elseif median(t{i}(idx)) > t_max
                 enabled_channels(i,j) = 0;
             else
@@ -115,6 +115,7 @@ for s = 1:length(subjects)
 end
 
 %% Plot
+SetFont('Arial', 9)
 clf; 
 set(gcf, 'Units', 'Inches', 'Position', [31 1 10 4])
 % Detection thresholds
@@ -140,11 +141,23 @@ axes('Position', [.1 .2 .35 .7]); hold on
         'HorizontalAlignment', 'right', 'VerticalAlignment', 'top')
     
     ylabel(sprintf('Detection Threshold (%sA)', GetUnicodeChar('mu')))
-        xlabel('Days From Implant')
+    xlabel('Days From Implant')
 
 % Disabled electrodes?
 axes('Position', [.55 .2 .35 .7]); hold on
+    for s = 1:length(subjects)
+        y = disabled_electrodes{s};
+        % Fill missing values if a threshold was missed
+        y = fillmissing(y, "linear", 2, "MaxGap", 3);
+        y(isnan(y)) = 0;
+        % Remove trailing 0s
+        term_idx = find(~all(y == 0, 1), 1, 'last');
 
+        plot(dx(1:term_idx), mean(y(:,1:term_idx), 1, 'omitmissing'), 'Color', SubjectColors(subjects{s}), ...
+            'LineWidth', 2)
+    end
+    ylabel('p(Enabled Electrodes)')
+    xlabel('Days From Implant')
 
 shg
 
@@ -215,6 +228,7 @@ subplot(h,w,1); hold on
     px = p(1) + p(3) - pw;
     py = p(2) + p(4) + 0.035;
     cb = ColorbarLegend(gcf, [px, py, pw 0.0125], cmap, 'Horz', [0 100]);
+    xlabel(cb, 'Detection Threshold (uA)', 'VerticalAlignment', 'bottom')
 
 
 % Enabled/disabled
