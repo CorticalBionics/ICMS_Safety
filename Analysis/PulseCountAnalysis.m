@@ -4,44 +4,41 @@ u_part = unique(data.Subject);
 u_part_alt = {'C1', 'C2', 'P2', 'P3', 'P4'};
 
 %% Summary statistics
-[pc, ps, cc, cs] = deal(zeros(size(u_part))); % pulse count/per session, current count/per session
-[pp, cp] = deal(zeros(length(u_part), 3)); % pulse, current percentiles (25, 50, 75)
+[total_pulse_count, total_charge] =  deal(zeros(size(u_part)));
+[pulse_count_per_session, charge_per_session] = deal(cell(size(u_part)));
+[total_pulse_per_electrode, total_charge_per_electrode] = deal(zeros(length(u_part), 64));
+[pulse_percentiles, charge_percentiles] = deal(zeros(length(u_part), 3));
 for pi = 1:length(u_part)
     % Filter participant
     s_idx = strcmp(data.Subject, u_part(pi));
-
-    % Pulse number analysis
     % Combine across session
     total_pulses = cat(2, data.PulseCount{s_idx});
     total_pulses(total_pulses == 0) = NaN;
-    sum_pulses = sum(total_pulses, 2, 'omitnan');
-    % Total
-    pc(pi) = sum(total_pulses, 'all', 'omitnan');
-    % Per session
-    ps(pi) = pc(pi) / sum(s_idx);
-    % Per electrode stats
-    pp(pi, :) = round(prctile(sum_pulses, [25, 50, 75]));
-
-    % Pulse current analysis
-    % Combine across session
     total_current = cat(2, data.CurrentCount{s_idx});
     total_current(total_current == 0) = NaN;
-    sum_current = sum(total_current, 2, 'omitnan');
-    % Total
-    cc(pi) = sum(total_current, 'all', 'omitnan');
-    % Per session
-    cs(pi) = cc(pi) / sum(s_idx);
-    % Per electrode stats
-    cp(pi, :) = round(prctile(sum_current, [25, 50, 75]));
+    all_charge = total_current .*  0.2; % Convert to charge
+
+    % Pulse number analysis
+    total_pulse_count(pi) = sum(total_pulses, 'all', 'omitnan');
+    total_pulse_per_electrode(pi,:) = sum(total_pulses, 2, 'omitnan');
+    pulse_count_per_session{pi} = sum(total_pulses, 1, 'omitnan');
+    pulse_percentiles(pi, :) = round(prctile(total_pulse_per_electrode(pi,:), [25, 50, 75]));
+
+    % Charge analysis
+    total_charge(pi) = sum(all_charge, 'all', 'omitnan');
+    total_charge_per_electrode(pi,:) = sum(all_charge, 2, 'omitnan');
+    charge_per_session{pi} = sum(all_charge, 1, 'omitnan');
+    charge_percentiles(pi, :) = round(prctile(total_pulse_per_electrode(pi,:), [25, 50, 75]));
+    mean_current = mean(all_charge, 2, 'omitnan');
     
     % Display
     fprintf('\n%s:\n', u_part(pi))
-    fprintf('Total pulses delivered: %d\n', pc(pi))
+    fprintf('Total pulses delivered: %d\n', total_pulse_count(pi))
     fprintf('Mean pulses per session: %d\n', round(sum(total_pulses, 'all', 'omitnan') / sum(s_idx)))
-    fprintf('Pulses per electrode (mean, 25, 75): %d (%d, %d)\n', pp(pi, [2,1,3]))
-    fprintf('Total current delivered: %d\n', cc(pi))
-    fprintf('Mean current per session: %d\n', round(sum(total_current, 'all', 'omitnan') / sum(s_idx)))
-    fprintf('Current per electrode (mean, 25, 75): %d (%d, %d)\n', cp(pi, [2,1,3]))
+    fprintf('Pulses per electrode (mean, 25, 75): %d (%d, %d)\n', pulse_percentiles(pi, [2,1,3]))
+    fprintf('Total Charge delivered: %d\n', total_charge(pi))
+    fprintf('Mean Charge per session: %d\n', round(sum(total_charge, 'all', 'omitnan') / sum(s_idx)))
+    fprintf('Charge per electrode (mean, 25, 75): %d (%d, %d)\n', charge_percentiles(pi, [2,1,3]))
 end
 
 
@@ -51,7 +48,7 @@ cmap = ColorGradient([1 1 1], rgb(21, 101, 192));
 SetFont('Arial', 9)
 
 clf; 
-set(gcf, 'Units', 'Inches', 'Position', [31, 1, 6.5, 9])
+set(gcf, 'Units', 'Inches', 'Position', [28, 1, 6.5, 9])
 
 % Heatmaps
 [ax_size, ax_val] = GetAxisCoords(5, 0.05, 0.04);
@@ -130,77 +127,40 @@ end
 c = ColorbarLegend(gcf, [xs+0.07 ax_val(end)-0.015 0.16 0.01], cmap, 'Horz', [0 1]);
 x = xlabel('p(Pulses)', 'VerticalAlignment', 'bottom');
 
-xs = 0.7; xw = 0.225;
-[ax_size, ax_val] = GetAxisCoords(6, 0.05, 0.04);
+% Summary statistics
+xs = 0.725; xw = 0.225;
+[ax_size, ax_val] = GetAxisCoords(7, 0.05, 0.04);
 ax_val = flipud(ax_val);
-% Pulse counts
-axes('Position', [xs, ax_val(1) xw ax_size]); hold on
-    for pi = 1:length(u_part)
-        Swarm(pi, pc(pi), SubjectColors(u_part{pi}), 'DS', 'Bar', 'SPL', 0)
-    end
-    set(gca, 'XLim', [.5 5.5], 'XTick', [1:5], 'XTickLabel', {})
-
-
-% Pulses per session
-axes('Position', [xs, ax_val(2) xw ax_size]); hold on
-    for pi = 1:length(u_part)
-        Swarm(pi, ps(pi), SubjectColors(u_part{pi}), 'DS', 'Bar', 'SPL', 0)
-    end
-    set(gca, 'XLim', [.5 5.5], 'XTick', [1:5], 'XTickLabel', {})
-
-
-% Pulses per electrode
-axes('Position', [xs, ax_val(3) xw ax_size]); hold on
-    for pi = 1:length(u_part)
-        % Get pulses for per subject
-        s_idx = strcmp(data.Subject, u_part(pi));
-        total_pulses = cat(2, data.PulseCount{s_idx});
-        total_pulses(total_pulses == 0) = NaN;
-        sum_pulses = sum(total_pulses, 2, 'omitnan');
-        % Plot
-        Swarm(pi, sum_pulses, SubjectColors(u_part{pi}), 'DS', 'Box', 'SPL', 0)
-    end
-    set(gca, 'XLim', [.5 5.5], 'XTick', [1:5], 'XTickLabel', {})
-
-
-% Current counts
-axes('Position', [xs, ax_val(4) xw ax_size]); hold on
-    for pi = 1:length(u_part)
-        Swarm(pi, cc(pi) ./ 1e9, SubjectColors(u_part{pi}), 'DS', 'Bar', 'SPL', 0)
-    end
-    set(gca, 'XLim', [.5 5.5], 'XTick', [1:5], 'XTickLabel', {})
-
-
-% Current per session
-axes('Position', [xs, ax_val(5) xw ax_size]); hold on
-    for pi = 1:length(u_part)
-        Swarm(pi, cs(pi) ./ 1e6, SubjectColors(u_part{pi}), 'DS', 'Bar', 'SPL', 0)
-    end
-    set(gca, 'XLim', [.5 5.5], 'XTick', [1:5], 'XTickLabel', {})
-
-
-% Current per electrode
-axes('Position', [xs, ax_val(6) xw ax_size]); hold on
-    for pi = 1:length(u_part)
-        % Get pulses for per subject
-        s_idx = strcmp(data.Subject, u_part(pi));
-        total_pulses = cat(2, data.CurrentCount{s_idx});
-        total_pulses(total_pulses == 0) = NaN;
-        sum_pulses = sum(total_pulses, 2, 'omitnan');
-        % Plot
-        Swarm(pi, sum_pulses ./ 1e6, SubjectColors(u_part{pi}), 'DS', 'Box', 'SPL', 0)
-    end
-    set(gca, 'XLim', [.5 5.5], 'XTick', [1:5], 'XTickLabel', ColorText(u_part_alt, SubjectColors(u_part)))
-
+clearvars ax
 % Custom y-labels
-l = {'Total # Pulses', 'Pulses/Session', 'Pulses/Electrode', 'Total Current (mC)', ...
-     sprintf('Current/Session (%sC)', GetUnicodeChar('mu')), ...
-     sprintf('Current/Electrode (%sC)', GetUnicodeChar('mu'))};
+l = {'Total # Pulses', 'Pulses per Session', 'Pulses per Electrode', 'Total Charge (mC)', ...
+     sprintf('Charge per\nSession (%sC)', GetUnicodeChar('mu')), ...
+     sprintf('Charge per\nElectrode (%sC)', GetUnicodeChar('mu')), ...
+     sprintf('Charge/Pulse\nElectrode (nC)')};
 
-for i = 1:length(l)
-    annotation("textarrow", [xs-.06, xs-.06], [ax_val(i)+ax_size/2, ax_val(i)+ax_size/2], 'String', l{i}, ...
-        'TextRotation', 90, 'HeadStyle', 'none', 'LineStyle', 'none', 'HorizontalAlignment', 'center')
+% Create axes
+for i = 1:7
+    ax(i) = axes('Position', [xs, ax_val(i) xw ax_size]); hold on %#ok<SAGROW>
+    annotation("textarrow", [xs-.05, xs-.05], [ax_val(i)+ax_size/2, ax_val(i)+ax_size/2], 'String', l{i}, ...
+        'TextRotation', 90, 'HeadStyle', 'none', 'LineStyle', 'none', 'HorizontalAlignment', 'center', ...
+        'VerticalAlignment', 'bottom')
+    set(ax(i), 'XLim', [.5 5.5], 'XTick', [1:5], 'XTickLabel', {})
 end
+% Add plot elements
+for pi = 1:length(u_part)
+    Swarm(pi, total_pulse_count(pi), SubjectColors(u_part{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(1))
+    Swarm(pi, pulse_count_per_session{pi}, SubjectColors(u_part{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(2))
+    Swarm(pi, total_pulse_per_electrode(pi,:), SubjectColors(u_part{pi}), 'DS', 'Box', 'SPL', 0, 'Parent', ax(3))
+    Swarm(pi, total_charge(pi) ./ 1e9, SubjectColors(u_part{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(4))
+    Swarm(pi, charge_per_session{pi} ./ 1e6, SubjectColors(u_part{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(5))
+    Swarm(pi, total_charge_per_electrode(pi,:) ./ 1e6, SubjectColors(u_part{pi}), 'DS', 'Box', 'SPL', 0, 'Parent', ax(6))
+    Swarm(pi, total_charge_per_electrode(pi,:) ./ total_pulse_per_electrode(pi,:), SubjectColors(u_part{pi}),...
+        'DS', 'Box', 'SPL', 0, 'Parent', ax(7))
+end
+% Format
+% set(ax(7), 'XLim', [.5 5.5], 'XTick', [1:5], 'YLim', [0, 20], 'XTickLabel', {})
+set(ax(end), 'XTickLabel', ColorText(u_part_alt, SubjectColors(u_part)))
+
 shg
 
 % export_figure4x(pwd, 'PulseCounts')
