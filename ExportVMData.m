@@ -9,7 +9,8 @@ for collection = 1:size(vm_collection_list,1)
         continue
     end
     fname = sprintf('%s.mat', vm_collection_list(collection).name);
-    if exist(fullfile(tld, fname), 'file') == 2
+    
+    if exist(fullfile(tld, fname), 'file') == 2 || exist(fullfile(tld, vm_collection_list(collection).name), 'file') == 2
         continue
     end
 

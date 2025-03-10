@@ -1,10 +1,10 @@
 %Export cleaning data
 addpath(genpath('C:\git\climber\src\VoltageMonitor\utilities'))
-addpath("P:\users\tgh28\ChartWithCharles"); %For progress bar
+addpath(genpath("P:\users\tgh28\ChartWithCharles")); %For progress bar
 
 %Set Up Folders
-data_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_data";
-output_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\cleaning_data";
+data_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_data_combined";
+output_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\cleaning_data2";
 
 % Count the number of pulses
 
@@ -59,12 +59,11 @@ for f = 1:length(flist) %f = 20 Weird wwaveforms
     % Go through each trial
     for i = 1:length(VMData)
         
-        %Check if Set was cleaning protocol (same channels length)
-        chan_correct = length(VMData(i).Channels) == 12 || length(VMData(i).Channels) == 11 || sum(ismember(VMData(i).Channels, [3 32 35 64])) > 2;
-        len_correct = length(VMData(i).Amplitudes{1, 1}) == 50;
-
-        if ~chan_correct || ~len_correct %Check for cleaning data
-            continue
+        %First check if this trial was a cleaning protocol 
+        num_electrodes = length(VMData(i).Channels);
+        amps = unique(cell2mat(VMData(i).Amplitudes));
+        if ~all(amps == 10) && ~all(amps == 20)
+                continue
         end
 
         [avg_vmax, avg_vinter, avg_vmin] = deal(NaN(num_electrodes, 1));
@@ -72,26 +71,27 @@ for f = 1:length(flist) %f = 20 Weird wwaveforms
         avg_waveform = NaN(num_electrodes,100);
 
         %Go through each ch and get waveforms and average
-        for ch = 1:length(VMData(i).Channels)
-            ch_idx = VMData(i).Channels(ch); %set channel
+        for ch = 1:num_electrodes
+
             %Get all waveforms for cleaning protocol for that ch
-            waveforms = VMData(i).Waveforms{ch};
-            
+            waveforms = VMData(i).Waveforms{1,ch};
+
             %Check that waveforms are all the right length
-            if all(cellfun(@(x) length(x) == 100, waveforms))
-      
-                %Convert into matrix (100 x 50 waveforms)
-                waveforms_mat = cell2mat(waveforms');
-                [v_min, v_max, v_inter] = deal(zeros(size(waveforms_mat, 2), 1));
+            if size(waveforms,1) == 160
+
+                [v_min, v_max, v_inter] = deal(zeros(size(waveforms, 2), 1));
+                saved_vmax = VMData(i).maxV{:,:};
+                saved_vmin = VMData(i).minV{:,:};
+
                 %CALCULATE PER PULSE, THEN TAKE MEDIAN (each col is wave)
-                for w = 1:size(waveforms_mat, 2)
-                    wave_temp = waveforms_mat(:,w);
+                for w = 1:size(waveforms, 2)
+                    wave_temp = waveforms(:,w);
     
                     %calculate intermedite voltage
                     change_in_wave = abs(diff(wave_temp));
     
                     %Get index of v_inter
-                    idx_start = find(change_in_wave(1:pulse_hw/2) < (0.01 * max(abs(wave_temp))), 1, 'last') + 1; %DOUBLE CHEC
+                    idx_start = find(change_in_wave(1:pulse_hw/2) < (0.01 * max(abs(wave_temp))), 1, 'last') + 1; %DOUBLE CHECK
                     idx_stop = find(change_in_wave(end-pulse_hw:end) < (0.01 * max(abs(wave_temp))), 1, 'first') -1 + pulse_hw; %DOUBLE CHECK
                     inter_idx = idx_start + round((idx_stop - idx_start) * idx_ratio);
     
@@ -101,9 +101,17 @@ for f = 1:length(flist) %f = 20 Weird wwaveforms
                         v_max(w) = max(wave_temp);
                         v_inter(w) = wave_temp(inter_idx);
                     end
+
+                    %Double check if this matches the saved max and min 
+                    if abs(min(wave_temp) - saved_vmin(w)) > 0.001
+                        error('Vmin does not match for file %s, trial %d, channel %d', expected_fname, i, ch')
+                    end
+
+                    if abs(max(wave_temp) - saved_vmax(w)) > 0.001
+                        error('Vmin does not match for file %s, trial %d, channel %d', expected_fname, i, ch')
+                    end
                 end
-            
-    
+                
                 %Get averages with median
                 avg_vmin(ch_idx) = median(v_min);
                 avg_vmax(ch_idx) = median(v_max);
@@ -111,7 +119,8 @@ for f = 1:length(flist) %f = 20 Weird wwaveforms
                 waveform{ch_idx} = waveforms_mat;
                 avg_waveform(ch_idx,:) = median(waveforms_mat, 2);
             else
-               warning('Waveform length is not 100 for file %s, trial %d, channel %d', expected_fname, i, ch);
+               warning('Waveform length is not 160 for file %s, trial %d, channel %d', expected_fname, i, ch);
+               continue;
             end
         end
 
@@ -187,18 +196,33 @@ for i = 1:length(data)
 end
 
 % plot each channel
+[ch_corrs, ch_coeff] = deal(NaN(64,1));
 for ch = 1%:64
     if ~isempty(day_since_start_all{ch})  % Plot only if data exists for the channel
         figure(ch);
         x = day_since_start_all{ch};
         y = vinter_all{ch};
-        scatter(x, movmedian(y, 10), 20, "black", "filled"); hold on
-        []
+        nan_idx = isnan(y);
+        x = x(~nan_idx);
+        y = y(~nan_idx);
+        y = movmedian(y, 10);
+
+        scatter(x,y, 20, "black", "filled"); hold on
+        [ch_corrs(ch),cp] = corr(x,y, 'Rows', 'complete');
+        p = polyfit(x,y,1);
+        ch_coeff(ch) = p(1);
+        plot([min(x), max(x)], polyval(p, [min(x), max(x)]), 'Color', 'k')
 
         title(sprintf('Ch %d', ch));
         xlabel('Days Since Implant');
-        ylabel('Intermediate Voltage');
+        ylabel(sprintf('Interphase Voltage (%sA)', GetUnicodeChar('mu')));
         hold off;
         set(gca, 'YLim', [-8 2])
     end
 end
+
+clf; subplot(1,2,1); Swarm(1, ch_corrs, 'DS', 'Box'); subplot(1,2,2); Swarm(1, ch_coeff, 'DS', 'Box')
+
+%% Convert dates to datetimes 
+% date = '03-Jan-2017';
+% datetime(date, 'InputFormat', 'dd-MMM-uuuu')
