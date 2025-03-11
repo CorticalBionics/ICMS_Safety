@@ -50,7 +50,7 @@ for s = 1:length(subjects)
         if all(~n_idx) || length(y) < 10
             [formatted_struct(c).ThresholdDateCorrR, formatted_struct(c).ThresholdDateCorrP] = deal(NaN);
         else
-            [formatted_struct(c).ThresholdDateCorrR, formatted_struct(c).ThresholdDateCorrP] = corr(x(n_idx), y(n_idx), 'Rows', 'complete');
+            [formatted_struct(c).ThresholdDateCorrR, formatted_struct(c).ThresholdDateCorrP] = corr(x(n_idx), y(n_idx), 'Rows', 'complete', 'Type', 'Kendall');
         end
     end
     subject_structs{s} = formatted_struct;

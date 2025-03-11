@@ -81,48 +81,20 @@ for pi = 1:length(u_part)
 end
 
 %% Correlate VM data with detection data
-clf; hold on
-for s = 1:num_subjects
-    x = total_charge(s, :)';
-    y = NaN(num_channels, 1);
-    for c = 1:num_channels % Make sure we are comparing correctly
-        dt_idx = [DetectionData{s}.Channel] == c;
-        if all(dt_idx == 0)
-            continue
-        end
-        y(c) = DetectionData{s}(dt_idx).ThresholdDateCorrR;
-    end
-    if all(isnan(y))
-        continue
-    end
-    % Plot
-    scatter(x,y, 30, SubjectColors(u_part{s}), 'filled')
-    % Linear regression
-    idx = ~isnan(y);
-    p = polyfit(x(idx),y(idx),1);
-    xq = [min(x), max(x)];
-    plot(xq, polyval(p, xq), 'Color', SubjectColors(u_part{s}), 'LineStyle', '--')
-    corr(x,y, 'Rows', 'complete', 'Type', 'Kendall');
-end
-
-set(gca, 'XLim', [0, 3e7], 'YLim', [-1 1])
-ylabel('Duration:Threhsold Correlation')
-xlabel('Charge Delivered')
-
-shg
-
-
-%% Plot
 SetFont('Arial', 9)
+
 clf; 
-set(gcf, 'Units', 'Inches', 'Position', [31 1 10 3])
+set(gcf, 'Units', 'Inches', 'Position', [31 1 10 6])
+h = 2; w = 3; sp_idx = 1;
+
+[corr_coeffs, corr_coeffs_p] = deal(NaN(num_subjects, 2));
+
 % Detection thresholds
-subplot(1,3,1); hold on
+subplot(h,w,sp_idx); hold on
 % axes('Position', [.1 .2 .35 .7]); hold on    
     for s = 1:num_subjects
         AlphaLine(dx, discretized_thresholds{s}, SubjectColors(subjects{s}), 'LineWidth', 2, 'IgnoreNan', 1)
     end
-    
     
     % Format
     fmt = 'linear';
@@ -142,22 +114,28 @@ subplot(1,3,1); hold on
     ylabel(sprintf('Detection Threshold (%sA)', GetUnicodeChar('mu')))
     xlabel('Days From Implant')
 
+
 % Threshold time correlation
-subplot(1,3,2); hold on
+sp_idx = sp_idx + 1;
+subplot(h,w,sp_idx); hold on
     for s = 1:num_subjects
         col = repmat(SubjectColors(u_part{s}), length(DetectionData{s}), 1);
         % Color code correlatinos by significance
         idx = [DetectionData{s}.ThresholdDateCorrP] > 0.05;
+        if ~any(idx)
+            continue
+        end
         col(idx,:) = .8;
         Swarm(s, [DetectionData{s}.ThresholdDateCorrR], 'SwarmColor', col, 'DistributionWidth', .35)
     end
     set(gca, 'Ylim', [-1 1], 'XTick', [1:5], 'XTickLabel', ColorText(subjects, SubjectColors(u_part)), ...
         'XLim', [.5 5.5])
-    ylabel(sprintf('Correlation (%s)', GetUnicodeChar('rho')))
+    ylabel(sprintf('Correlation (%s)', GetUnicodeChar('tau')))
 
 
 % Disabled electrodes?
-subplot(1,3,3); hold on
+sp_idx = sp_idx + 1;
+subplot(h,w,sp_idx); hold on
     for s = 1:num_subjects
         y = disabled_electrodes{s};
         % Fill missing values if a threshold was missed
@@ -172,8 +150,103 @@ subplot(1,3,3); hold on
     ylabel('p(Enabled Electrodes)')
     xlabel('Days From Implant')
 
-shg
 
+% DT vs charge
+sp_idx = sp_idx + 1;
+xq = linspace(0, 100);
+subplot(h,w,sp_idx); hold on
+    for s = 1:num_subjects
+        x = NaN(num_channels, 1);
+        y = total_charge(s, :)';
+        for c = 1:num_channels % Make sure we are comparing correctly
+            dt_idx = [DetectionData{s}.Channel] == c;
+            if all(dt_idx == 0)
+                continue
+            end
+            x(c) = median(DetectionData{s}(dt_idx).Threshold, 'omitnan');
+        end
+        if all(isnan(x))
+            continue
+        end
+        idx = ~isnan(x) & ~isinf(x);
+        x_trim = x(idx); y_trim = y(idx);
+        % Exponential curve fit
+        f = fit(x_trim, y_trim, 'exp1');
+
+        % Plot
+        scatter(x_trim, y_trim, 30, SubjectColors(u_part{s}), 'filled')
+        plot(xq, feval(f, xq), 'Color', SubjectColors(u_part{s}), 'LineStyle', '--')
+        [corr_coeffs(s,1), corr_coeffs_p(s,1)] = corr(x,y, 'Rows', 'complete', 'Type', 'Kendall');
+    end
+    
+    set(gca, 'YLim', [0, 3e7], 'XLim', [0 100])
+    xlabel(sprintf('Median Detection Threshold (%sA)', GetUnicodeChar('mu')))
+    ylabel('Charge Delivered')
+
+% DT vs normalized charge
+sp_idx = sp_idx + 1;
+xq = linspace(0, 100);
+subplot(h,w,sp_idx); hold on
+    for s = 1:num_subjects
+        x = NaN(num_channels, 1);
+        y = total_charge(s, :)'; y = y ./ mean(y);
+        for c = 1:num_channels % Make sure we are comparing correctly
+            dt_idx = [DetectionData{s}.Channel] == c;
+            if all(dt_idx == 0)
+                continue
+            end
+            x(c) = median(DetectionData{s}(dt_idx).Threshold, 'omitnan');
+        end
+        if all(isnan(x))
+            continue
+        end
+        idx = ~isnan(x) & ~isinf(x);
+        x_trim = x(idx); y_trim = y(idx);
+        % Exponential curve fit
+        f = fit(x_trim, y_trim, 'exp1');
+
+        % Plot
+        scatter(x_trim, y_trim, 30, SubjectColors(u_part{s}), 'filled')
+        plot(xq, feval(f, xq), 'Color', SubjectColors(u_part{s}), 'LineStyle', '--')
+    end
+    
+    set(gca, 'YLim', [0, 6], 'XLim', [0 100])
+    xlabel(sprintf('Median Detection Threshold (%sA)', GetUnicodeChar('mu')))
+    ylabel('Relative Charge Delivered')
+
+% DT-tau vs total charge
+sp_idx = sp_idx + 1;
+xq = linspace(0, 3e7);
+subplot(h,w,sp_idx); hold on
+    for s = 1:num_subjects
+        x = total_charge(s, :)';
+        y = NaN(num_channels, 1);
+        for c = 1:num_channels % Make sure we are comparing correctly
+            dt_idx = [DetectionData{s}.Channel] == c;
+            if all(dt_idx == 0)
+                continue
+            end
+            y(c) = DetectionData{s}(dt_idx).ThresholdDateCorrR;
+        end
+        if all(isnan(y))
+            continue
+        end
+        idx = ~isnan(y) & ~isinf(y);
+        x_trim = x(idx); y_trim = y(idx);
+        % Exponential curve fit
+        f = fit(x_trim, y_trim, 'exp1');
+
+        % Plot
+        scatter(x_trim, y_trim, 30, SubjectColors(u_part{s}), 'filled')
+        plot(xq, feval(f, xq), 'Color', SubjectColors(u_part{s}), 'LineStyle', '--')
+        [corr_coeffs(s,2), corr_coeffs_p(s,2)] = corr(x,y, 'Rows', 'complete', 'Type', 'Kendall');
+    end
+    
+    set(gca, 'XLim', [0, 3e7], 'YLim', [-1 1])
+    ylabel('Duration:Threshold Correlation')
+    xlabel('Charge Delivered')
+
+shg
 
 return
 

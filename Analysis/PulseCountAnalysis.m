@@ -2,15 +2,17 @@
 load(fullfile(DataPath, 'VMData_All.mat'))
 u_part = unique(data.Subject);
 u_part_alt = {'C1', 'C2', 'P2', 'P3', 'P4'};
+num_part = length(u_part);
 
 conversion_factor = 1e6; % Nano to millicoulomb
 
 %% Summary statistics
 [total_pulse_count, total_charge] = deal(zeros(size(u_part)));
 [pulse_count_per_session, charge_per_session] = deal(cell(size(u_part)));
-[total_pulse_per_electrode, total_charge_per_electrode] = deal(zeros(length(u_part), 64));
-[pulse_percentiles, charge_percentiles] = deal(zeros(length(u_part), 3));
-for pi = 1:length(u_part)
+[total_pulse_per_electrode, total_charge_per_electrode] = deal(zeros(num_part, 64));
+[pulse_percentiles, charge_percentiles] = deal(zeros(num_part, 3));
+
+for pi = 1:num_part
     % Filter participant
     s_idx = strcmp(data.Subject, u_part(pi));
     % Combine across session
@@ -55,7 +57,7 @@ set(gcf, 'Units', 'Inches', 'Position', [27, 1, 6.5, 9])
 [ax_size, ax_val] = GetAxisCoords(5, 0.05, 0.04);
 ax_val = flipud(ax_val);
 xs = 0.1; xw = 0.3; yh = ax_size;
-for pi = 1:length(u_part)
+for pi = 1:num_part
     % Get pulses for heatmap
     s_idx = strcmp(data.Subject, u_part(pi));
     total_pulses = cat(2, data.PulseCount{s_idx});
@@ -90,7 +92,7 @@ y.Position(1) = y.Position(1) + 1;
 
 % Electrode maps
 xs = 0.38; xw = 0.3;
-for pi = 1:length(u_part)
+for pi = 1:num_part
     axes('Position', [xs ax_val(pi) xw yh], 'DataAspectRatio', [1 1 1]); hold on
     % Get pulses for per subject
     s_idx = strcmp(data.Subject, u_part(pi));
@@ -148,7 +150,7 @@ for i = 1:7
     set(ax(i), 'XLim', [.5 5.5], 'XTick', [1:5], 'XTickLabel', {})
 end
 % Add plot elements
-for pi = 1:length(u_part)
+for pi = 1:num_part
     Swarm(pi, total_pulse_count(pi), SubjectColors(u_part{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(1))
     Swarm(pi, pulse_count_per_session{pi}, SubjectColors(u_part{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(2))
     Swarm(pi, total_pulse_per_electrode(pi,:), SubjectColors(u_part{pi}), 'DS', 'Box', 'SPL', 0, 'Parent', ax(3))
