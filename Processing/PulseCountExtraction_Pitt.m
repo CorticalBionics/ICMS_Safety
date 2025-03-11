@@ -1,7 +1,7 @@
 % Count the number of pulses
 num_electrodes = 64;
-data_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_data";
-output_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_out";
+data_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_data_combined";
+output_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_out2";
 temp = table('Size', [1, 4], ...
     'VariableNames', {'Subject', 'Date', 'PulseCount', 'CurrentCount'}, ...
     'VariableTypes', ["string", "datetime", "cell", "cell"]);

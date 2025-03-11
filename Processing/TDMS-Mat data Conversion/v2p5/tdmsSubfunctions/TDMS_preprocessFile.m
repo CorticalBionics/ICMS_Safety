@@ -389,9 +389,17 @@ while ftell(fid) ~= eofPosition
             
             for iProp = 1:numberProperties
                 propNameLength  = fread(fid,1,'uint32');
+                if isempty(propNameLength)
+                    continue
+                end
+
+
                 temp            = fread(fid,propNameLength,'*uint8');
                 propName        = native2unicode(temp,UNICODE_FORMAT)';
                 propDataType    = fread(fid,1,'uint32');
+                if isempty(propDataType)
+                    continue
+                end
                 
                 propIndex = find(strcmp(curProps(1:nPropsChan),propName),1);
                 if isempty(propIndex)

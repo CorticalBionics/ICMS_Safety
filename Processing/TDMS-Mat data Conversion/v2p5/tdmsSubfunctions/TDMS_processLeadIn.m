@@ -28,9 +28,11 @@ function [flags,info,eof_error] = TDMS_processLeadIn(fid,lastLetter)
     Dtag = fread(fid,1,'uint8');
     Stag = fread(fid,1,'uint8');
     mtag = fread(fid,1,'uint8');
-
+    eof_error = true;
+    flags = 0;
     if ~(Ttag == 84 && Dtag == 68 && Stag == 83 && mtag == lastLetter)
-        error('Unexpected lead in header')
+        fprintf('Unexpected lead in header');
+        % warning('Unexpected lead in header')
     else
         %2) Kind of Data
         tocMask = fread(fid,1,'uint32');    
