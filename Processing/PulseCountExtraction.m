@@ -4,7 +4,7 @@ data_path = "T:\SessionData";
 output_path = fullfile(DataPath, "VM_Info");
 subject_ids = {'BCI02', 'BCI03'};
 temp = table('Size', [1, 4], ...
-    'VariableNames', {'Subject', 'Date', 'PulseCount', 'CurrentCount', 'Waveforms'}, ...
+    'VariableNames', {'Subject', 'Date', 'PulseCount', 'CurrentCount'}, ...
     'VariableTypes', ["string", "datetime", "cell", "cell"]);
 for s = 1:length(subject_ids)
     % Get contents of voltage monitor directory
@@ -80,6 +80,15 @@ for f = 1:length(flist)
 
     data{f} = temp.data;
 end
+
+%%
+for f = 1:length(data)
+    if any(strcmp(data{f}.Properties.VariableNames, 'Waveforms'))
+        data{f}.Waveforms = [];
+    end
+end
+
+%%
 data = cat(1, data{:});
 
 save(fullfile(DataPath, 'VMData_All'), "data")

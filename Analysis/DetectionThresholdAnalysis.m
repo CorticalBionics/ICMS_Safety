@@ -1,87 +1,36 @@
-tld = 'U:\UserFolders\CharlesGreenspon\BCI_DetectionThresholds\Data';
+load(fullfile(DataPath, 'DetectionData.mat'))
+load(fullfile(DataPath, 'VMData_All.mat')); VMData = data; clearvars data
 
-% Get list of subjects
-d = dir(tld);
-subjects = {};
-for i = 3:length(d)
-    if d(i).isdir
-        subjects{end+1} = d(i).name; %#ok<SAGROW>
-    end
-end
-
-% Load raw structs and process
-subject_structs = cell(length(subjects), 1);
-subj_max_days = zeros(size(subject_structs));
-max_days = 0;
-for s = 1:length(subjects)
-    fname = sprintf('DetectionDataRaw_%s.mat', subjects{s});
-    load(fullfile(tld, subjects{s}, fname))
-
-    % 100 Hz stim single electrode only
-    idx = false(size(RawDetectionData));
-    for i = 1:length(RawDetectionData)
-        if RawDetectionData(i).ResponseTable{1, "Frequency"} == 100 && ...
-           isscalar(RawDetectionData(i).Channel)
-            idx(i) = true;
-        end
-    end
-    RawDetectionData = RawDetectionData(idx);
-
-    % Get implant date
-    if startsWith(subjects{s}, 'BCI')
-        subj_config = cc.load_config.participant(subjects{s}, 'chicago');
-    else
-        subj_config = cc.load_config.participant(subjects{s}, 'pitt');
-    end
-    implant_date = datetime(subj_config.implant_date, "InputFormat", "uuuu-MM-dd");
-
-    % Format by channel
-    [u_channel, ~, ic] = unique([RawDetectionData.Channel]);
-    formatted_struct = struct();
-    for c = 1:length(u_channel)
-        formatted_struct(c).Subject = subjects{s};
-        formatted_struct(c).Channel = u_channel(c);
-        c_idx = ic == c;
-        formatted_struct(c).Dates = cellfun(@(c) datetime(c, "InputFormat", "dd-MMM-uuuu"), {RawDetectionData(c_idx).Date});
-        formatted_struct(c).Threshold = [RawDetectionData(c_idx).Threshold];
-        formatted_struct(c).DateFromImplant = days(formatted_struct(c).Dates - implant_date);
-    end
-    subject_structs{s} = formatted_struct;
-
-    % Check max days
-    subj_max_days(s) = max(cellfun(@max, {formatted_struct.DateFromImplant}));
-
-    % Count total detection threshold measurements
-    ndt = cellfun(@length, {formatted_struct.Threshold});
-    fprintf('%s: %d total DTs (%0.1f %s %0.1f)\n', ...
-        subjects{s}, sum(ndt), mean(ndt), GetUnicodeChar("PlusMinus"), std(ndt))
-end
-
-clearvars -except subject_structs subj_max_days
+u_part = unique(VMData.Subject);
 subjects = {'C1', 'C2', 'P2', 'P3', 'P4'};
+num_subjects = length(subjects);
 num_channels = 64;
 
 %% Analyze
 dw = 250; % Bin width in days
+subj_max_days = zeros(size(DetectionData));
+for i = 1:length(DetectionData)
+    subj_max_days(i) = max(cellfun(@max, {DetectionData{i}.DateFromImplant}));
+end
 max_days = ceil(max(subj_max_days)/ dw) * dw; % Max days
 de = 0 : dw : max_days; % Day edges
 dx = de(1:end-1) + (dw/2); % Day center
 t_max = 90; % Threshold over which to assume disabled
 
 [discretized_thresholds, disabled_electrodes] = deal(cell(length(subjects), 1));
-for s = 1:length(subjects)
+for s = 1:num_subjects
     % Format data
-    % num_channels = size(subject_structs{s}, 2);
+    % num_channels = size(DetectionData{s}, 2);
     % Date, threshold, channel
     [d, t] = deal(cell(num_channels, 1));
     enabled_channels = NaN(num_channels, length(dx));
     for i = 1:num_channels
-        ch_idx = find([subject_structs{s}.Channel] == i);
+        ch_idx = find([DetectionData{s}.Channel] == i);
         if isempty(ch_idx) % Skip untested channels
             continue
         end
-        d{i} = subject_structs{s}(ch_idx).DateFromImplant;
-        t{i} = subject_structs{s}(ch_idx).Threshold;
+        d{i} = DetectionData{s}(ch_idx).DateFromImplant;
+        t{i} = DetectionData{s}(ch_idx).Threshold;
         
         % Find the last value with threshold below 'threshold'
         for j = 1:length(dx)
@@ -114,13 +63,63 @@ for s = 1:length(subjects)
     discretized_thresholds{s} = dv;
 end
 
+%% VM analysis
+total_charge = zeros(length(u_part), num_channels);
+[cumulative_charge, cumulative_dates] = deal(cell(size(u_part)));
+for pi = 1:length(u_part)
+    % Filter participant
+    s_idx = strcmp(VMData.Subject, u_part(pi));
+    cumulative_dates{pi} = VMData.Date(s_idx);
+    total_current = cat(2, VMData.CurrentCount{s_idx});
+    total_current(total_current == 0) = NaN;
+    all_charge = total_current .*  0.2; % Convert to charge, don't need to convert to millicoulombs
+
+    % Charge across time
+    total_charge(pi, :) = sum(all_charge, 2, 'omitnan');
+    % Cumulative charge
+    cumulative_charge{pi} = cumsum(all_charge, 2, 'omitnan');
+end
+
+%% Correlate VM data with detection data
+clf; hold on
+for s = 1:num_subjects
+    x = total_charge(s, :)';
+    y = NaN(num_channels, 1);
+    for c = 1:num_channels % Make sure we are comparing correctly
+        dt_idx = [DetectionData{s}.Channel] == c;
+        if all(dt_idx == 0)
+            continue
+        end
+        y(c) = DetectionData{s}(dt_idx).ThresholdDateCorrR;
+    end
+    if all(isnan(y))
+        continue
+    end
+    % Plot
+    scatter(x,y, 30, SubjectColors(u_part{s}), 'filled')
+    % Linear regression
+    idx = ~isnan(y);
+    p = polyfit(x(idx),y(idx),1);
+    xq = [min(x), max(x)];
+    plot(xq, polyval(p, xq), 'Color', SubjectColors(u_part{s}), 'LineStyle', '--')
+    corr(x,y, 'Rows', 'complete', 'Type', 'Kendall');
+end
+
+set(gca, 'XLim', [0, 3e7], 'YLim', [-1 1])
+ylabel('Duration:Threhsold Correlation')
+xlabel('Charge Delivered')
+
+shg
+
+
 %% Plot
 SetFont('Arial', 9)
 clf; 
-set(gcf, 'Units', 'Inches', 'Position', [31 1 10 4])
+set(gcf, 'Units', 'Inches', 'Position', [31 1 10 3])
 % Detection thresholds
-axes('Position', [.1 .2 .35 .7]); hold on    
-    for s = 1:length(subjects)
+subplot(1,3,1); hold on
+% axes('Position', [.1 .2 .35 .7]); hold on    
+    for s = 1:num_subjects
         AlphaLine(dx, discretized_thresholds{s}, SubjectColors(subjects{s}), 'LineWidth', 2, 'IgnoreNan', 1)
     end
     
@@ -143,9 +142,23 @@ axes('Position', [.1 .2 .35 .7]); hold on
     ylabel(sprintf('Detection Threshold (%sA)', GetUnicodeChar('mu')))
     xlabel('Days From Implant')
 
+% Threshold time correlation
+subplot(1,3,2); hold on
+    for s = 1:num_subjects
+        col = repmat(SubjectColors(u_part{s}), length(DetectionData{s}), 1);
+        % Color code correlatinos by significance
+        idx = [DetectionData{s}.ThresholdDateCorrP] > 0.05;
+        col(idx,:) = .8;
+        Swarm(s, [DetectionData{s}.ThresholdDateCorrR], 'SwarmColor', col, 'DistributionWidth', .35)
+    end
+    set(gca, 'Ylim', [-1 1], 'XTick', [1:5], 'XTickLabel', ColorText(subjects, SubjectColors(u_part)), ...
+        'XLim', [.5 5.5])
+    ylabel(sprintf('Correlation (%s)', GetUnicodeChar('rho')))
+
+
 % Disabled electrodes?
-axes('Position', [.55 .2 .35 .7]); hold on
-    for s = 1:length(subjects)
+subplot(1,3,3); hold on
+    for s = 1:num_subjects
         y = disabled_electrodes{s};
         % Fill missing values if a threshold was missed
         y = fillmissing(y, "linear", 2, "MaxGap", 3);
@@ -180,13 +193,13 @@ subplot(h,w,1); hold on
     % Date, threshold, channel
     [d, t, c] = deal(cell(num_channels, 1));
     for i = 1:num_channels
-        ch_idx = find([subject_structs{s}.Channel] == i);
+        ch_idx = find([DetectionData{s}.Channel] == i);
         if isempty(ch_idx) % Skip untested channels
             continue
         end
-        c{i} = repelem(subject_structs{s}(ch_idx).Channel, length(subject_structs{s}(ch_idx).Dates));
-        d{i} = subject_structs{s}(ch_idx).DateFromImplant;
-        t{i} = subject_structs{s}(ch_idx).Threshold;
+        c{i} = repelem(DetectionData{s}(ch_idx).Channel, length(DetectionData{s}(ch_idx).Dates));
+        d{i} = DetectionData{s}(ch_idx).DateFromImplant;
+        t{i} = DetectionData{s}(ch_idx).Threshold;
     end
     % Vectorize
     c = cat(2, c{:});
@@ -238,23 +251,20 @@ subplot(h,w,3);
 
 % Individual electrodes detection thresholds
 subplot(h,w,2); hold on
-    for i = 1:num_channels
-        ch_idx = find([subject_structs{s}.Channel] == i);
-        if isempty(ch_idx) % Skip untested channels
-            continue
-        end
-        plot(subject_structs{s}(ch_idx).DateFromImplant, subject_structs{s}(ch_idx).Threshold, 'Color', [.6 .6 .6])
-    end
+        AlphaLine(dx, discretized_thresholds{s}, SubjectColors(subjects{s}), 'LineWidth', 2, 'IgnoreNan', 1)
 
     ylabel(sprintf('Detection Threshold (%sA)', GetUnicodeChar('mu')))
     xlabel('Days From Implant')
+    set(gca, 'XLim', [0 max_days])
 
 
 % Summary detection threshold
 subplot(h,w,4); hold on
-    AlphaLine(dx, discretized_thresholds{s}, SubjectColors(subjects{s}), 'LineWidth', 2, 'IgnoreNan', 1)
-
-    ylabel(sprintf('Detection Threshold (%sA)', GetUnicodeChar('mu')))
-    xlabel('Days From Implant')
+    col = repmat(SubjectColors(u_part{s}), length(DetectionData{s}), 1);
+    % Color code correlatinos by significance
+    idx = [DetectionData{s}.ThresholdDateCorrP] > 0.05;
+    col(idx,:) = .8;
+    Swarm(1, [DetectionData{s}.ThresholdDateCorrR], 'SwarmColor', col)
+    set(gca, 'Ylim', [-1 1])
 
 shg
