@@ -26,25 +26,27 @@ for pi = 1:num_part
     total_pulse_count(pi) = sum(total_pulses, 'all', 'omitnan');
     total_pulse_per_electrode(pi,:) = sum(total_pulses, 2, 'omitnan');
     pulse_count_per_session{pi} = sum(total_pulses, 1, 'omitnan');
-    pulse_percentiles(pi, :) = round(prctile(total_pulse_per_electrode(pi,:), [25, 50, 75]));
+    pulse_percentiles(pi, :) = prctile(total_pulse_per_electrode(pi,:), [25, 50, 75]);
 
     % Charge analysis
     total_charge(pi) = sum(all_charge, 'all', 'omitnan');
     total_charge_per_electrode(pi,:) = sum(all_charge, 2, 'omitnan');
     charge_per_session{pi} = sum(all_charge, 1, 'omitnan');
-    charge_percentiles(pi, :) = round(prctile(total_pulse_per_electrode(pi,:), [25, 50, 75]));
+    charge_percentiles(pi, :) = prctile(total_charge_per_electrode(pi,:), [25, 50, 75]);
     
     % Print summary stats
     fprintf('\n%s:\n', u_part(pi))
     fprintf('Total pulses delivered: %d\n', total_pulse_count(pi))
-    fprintf('Mean pulses per session: %d\n', round(sum(total_pulses, 'all', 'omitnan') / sum(s_idx)))
-    fprintf('Pulses per electrode (mean, 25, 75): %d (%d, %d)\n', pulse_percentiles(pi, [2,1,3]))
-    fprintf('Total Charge delivered: %d\n', total_charge(pi))
-    fprintf('Mean Charge per session: %d\n', round(sum(total_charge, 'all', 'omitnan') / sum(s_idx)))
-    fprintf('Charge per electrode (mean, 25, 75): %d (%d, %d)\n', charge_percentiles(pi, [2,1,3]))
+    fprintf('Pulses per session: %0.1f (%0.1f - %0.1f)\n', prctile(pulse_count_per_session{pi}, [50, 25, 75]) ./ 1000)
+    fprintf('Pulses per electrode: %0.1f (%0.1f - %0.1f)\n', pulse_percentiles(pi, [2,1,3]) ./ 1000)
+    fprintf('Total Charge delivered: %0.1f\n', total_charge(pi))
+    fprintf('Charge per session: %0.1f (%0.1f - %0.1f)\n', prctile(charge_per_session{pi}, [50, 25, 75]))
+    fprintf('Charge per electrode: %0.2f (%0.2f - %0.2f)\n', charge_percentiles(pi, [2,1,3]))
+    cpp = (total_charge_per_electrode(pi,:) ./ total_pulse_per_electrode(pi,:));
+    fprintf('Charge per phase: %0.2f (%0.2f - %0.2f)\n', prctile(cpp, [50, 25, 75]) .* conversion_factor)
 end
 
-
+fprintf('\nTotal pulses across participants: %d\n', sum(total_pulse_count))
 %% Plot (Vertical)
 max_pulses = 1e4;
 cmap = ColorGradient([1 1 1], rgb(21, 101, 192));

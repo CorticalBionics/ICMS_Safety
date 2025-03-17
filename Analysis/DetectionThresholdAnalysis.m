@@ -1,5 +1,7 @@
 load(fullfile(DataPath, 'DetectionData.mat'))
-load(fullfile(DataPath, 'VMData_All.mat')); VMData = data; clearvars data
+load(fullfile(DataPath, 'VMData_All.mat')); 
+VMData = data;
+clearvars data
 
 u_part = unique(VMData.Subject);
 subjects = {'C1', 'C2', 'P2', 'P3', 'P4'};
@@ -15,7 +17,7 @@ end
 max_days = ceil(max(subj_max_days)/ dw) * dw; % Max days
 de = 0 : dw : max_days; % Day edges
 dx = de(1:end-1) + (dw/2); % Day center
-t_max = 90; % Threshold over which to assume disabled
+t_max = 60; % Threshold over which to assume disabled
 
 [discretized_thresholds, disabled_electrodes] = deal(cell(length(subjects), 1));
 for s = 1:num_subjects
@@ -64,6 +66,7 @@ for s = 1:num_subjects
 end
 
 %% VM analysis
+conversion_factor = 1e6;
 total_charge = zeros(length(u_part), num_channels);
 [cumulative_charge, cumulative_dates] = deal(cell(size(u_part)));
 for pi = 1:length(u_part)
@@ -72,7 +75,7 @@ for pi = 1:length(u_part)
     cumulative_dates{pi} = VMData.Date(s_idx);
     total_current = cat(2, VMData.CurrentCount{s_idx});
     total_current(total_current == 0) = NaN;
-    all_charge = total_current .*  0.2; % Convert to charge, don't need to convert to millicoulombs
+    all_charge = total_current .*  0.2 ./ conversion_factor; % Convert to charge, don't need to convert to millicoulombs
 
     % Charge across time
     total_charge(pi, :) = sum(all_charge, 2, 'omitnan');
@@ -80,20 +83,24 @@ for pi = 1:length(u_part)
     cumulative_charge{pi} = cumsum(all_charge, 2, 'omitnan');
 end
 
-%% Correlate VM data with detection data
+%% Plot
 SetFont('Arial', 9)
 
 clf; 
-set(gcf, 'Units', 'Inches', 'Position', [31 1 10 6])
+set(gcf, 'Units', 'Inches', 'Position', [20 1 6.4 4])
+[ax_w, ax_xs] = GetAxisCoords(3, .125, .05); ax_xs = ax_xs + .025;
+[ax_h, ax_ys] = GetAxisCoords(2, .1, .1); ax_ys(2) = ax_ys(2) + .05;
+
 h = 2; w = 3; sp_idx = 1;
 
 [corr_coeffs, corr_coeffs_p] = deal(NaN(num_subjects, 2));
 
 % Detection thresholds
-subplot(h,w,sp_idx); hold on
+axes('Position', [ax_xs(1), ax_ys(2), ax_w, ax_h]); hold on
 % axes('Position', [.1 .2 .35 .7]); hold on    
     for s = 1:num_subjects
-        AlphaLine(dx, discretized_thresholds{s}, SubjectColors(subjects{s}), 'LineWidth', 2, 'IgnoreNan', 1)
+        AlphaLine(dx, discretized_thresholds{s}, SubjectColors(subjects{s}), ...
+            'LineWidth', 2, 'IgnoreNan', 1)
     end
     
     % Format
@@ -115,27 +122,52 @@ subplot(h,w,sp_idx); hold on
     xlabel('Days From Implant')
 
 
-% Threshold time correlation
+% Threshold time relationship
 sp_idx = sp_idx + 1;
-subplot(h,w,sp_idx); hold on
+axes('Position', [ax_xs(2), ax_ys(2), ax_w, ax_h]); hold on
+    plot([.5 5.5], [0 0], 'Color', [.6 .6 .6], 'LineStyle', '--')
     for s = 1:num_subjects
-        col = repmat(SubjectColors(u_part{s}), length(DetectionData{s}), 1);
-        % Color code correlatinos by significance
-        idx = [DetectionData{s}.ThresholdDateCorrP] > 0.05;
-        if ~any(idx)
-            continue
-        end
-        col(idx,:) = .8;
-        Swarm(s, [DetectionData{s}.ThresholdDateCorrR], 'SwarmColor', col, 'DistributionWidth', .35)
+        y = [DetectionData{s}.ThresholdDateLinReg];
+        y = y(1:2:end);
+        Swarm(s, y, SubjectColors(u_part{s}), 'DistributionWidth', .35, 'DS', 'Box', 'SPL', 0)
     end
-    set(gca, 'Ylim', [-1 1], 'XTick', [1:5], 'XTickLabel', ColorText(subjects, SubjectColors(u_part)), ...
-        'XLim', [.5 5.5])
-    ylabel(sprintf('Correlation (%s)', GetUnicodeChar('tau')))
+    set(gca, 'Ylim', [-.1 .2], ...
+             'XTick', [1:5], ...
+             'XTickLabel', ColorText(subjects, SubjectColors(u_part)), ...
+             'XLim', [.5 5.5], ...
+             'YTick', [-.1:.1:.2])
+    ylabel(sprintf('%s DT/day (%sA)', GetUnicodeChar('Delta'), GetUnicodeChar('mu')))
+
+
+% Offset slope relationship
+sp_idx = sp_idx + 1;
+axes('Position', [ax_xs(3), ax_ys(2), ax_w, ax_h]); hold on
+    xl = [-15 115];
+    [osr, osrp] = deal(zeros(num_subjects, 1));
+    for s = 1:num_subjects
+        y = reshape([DetectionData{s}.ThresholdDateLinReg], 2, []);
+        yl = y(1,:);
+        % Scatter
+        [osr(s), osrp(s)] = corr(y(1,:)', y(2,:)', 'rows', 'complete');
+        yl(yl>0) = log10(1+yl(yl>0));
+        yl(yl<0) = -log10(1-yl(yl<0));
+        scatter(y(2,:), yl, 30, SubjectColors(u_part{s}), 'filled', 'MarkerFaceAlpha', .2)
+        % Line plot overlay
+        idx = ~isnan(yl);
+        p = polyfit(y(2,idx)', yl(idx)', 1);
+        plot(xl, polyval(p, xl), 'Color', SubjectColors(u_part{s}), 'LineStyle', '-', 'LineWidth', 2)
+    end
+    xlabel(sprintf('Intercept (%sA)', GetUnicodeChar('mu')))
+    ylabel(sprintf('Log_{10} Slope (%sA/day)', GetUnicodeChar('mu')))
+    set(gca, 'Xlim', xl, ...
+             'XTick', [0:25:100], ...
+             'YLim', [-0.05 .1], ...
+             'YTick', [-0.05:.05:.1])
 
 
 % Disabled electrodes?
 sp_idx = sp_idx + 1;
-subplot(h,w,sp_idx); hold on
+axes('Position', [ax_xs(1), ax_ys(1), ax_w, ax_h]); hold on
     for s = 1:num_subjects
         y = disabled_electrodes{s};
         % Fill missing values if a threshold was missed
@@ -154,7 +186,7 @@ subplot(h,w,sp_idx); hold on
 % DT vs charge
 sp_idx = sp_idx + 1;
 xq = linspace(0, 100);
-subplot(h,w,sp_idx); hold on
+axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
     for s = 1:num_subjects
         x = NaN(num_channels, 1);
         y = total_charge(s, :)';
@@ -170,88 +202,60 @@ subplot(h,w,sp_idx); hold on
         end
         idx = ~isnan(x) & ~isinf(x);
         x_trim = x(idx); y_trim = y(idx);
+        y_trim = y_trim ./ mean(y_trim); % normalize
         % Exponential curve fit
         f = fit(x_trim, y_trim, 'exp1');
 
         % Plot
-        scatter(x_trim, y_trim, 30, SubjectColors(u_part{s}), 'filled')
-        plot(xq, feval(f, xq), 'Color', SubjectColors(u_part{s}), 'LineStyle', '--')
+        scatter(x_trim, y_trim, 30, SubjectColors(u_part{s}), 'filled', 'MarkerFaceAlpha', .2)
+        plot(xq, feval(f, xq), 'Color', SubjectColors(u_part{s}), 'LineStyle', '-','LineWidth', 2)
         [corr_coeffs(s,1), corr_coeffs_p(s,1)] = corr(x,y, 'Rows', 'complete', 'Type', 'Kendall');
     end
     
-    set(gca, 'YLim', [0, 3e7], 'XLim', [0 100])
+    set(gca, 'YLim', [.2, 5], 'XLim', [0 100], 'YScale', 'log')
     xlabel(sprintf('Median Detection Threshold (%sA)', GetUnicodeChar('mu')))
-    ylabel('Charge Delivered')
+    ylabel('Charge Delivered (mC)')
 
-% DT vs normalized charge
+
+% Slope charge relationship
 sp_idx = sp_idx + 1;
-xq = linspace(0, 100);
-subplot(h,w,sp_idx); hold on
+axes('Position', [ax_xs(3), ax_ys(1), ax_w, ax_h]); hold on
+    xl = [0 3.2e1];
+    [scr, scp] = deal(zeros(num_subjects, 1));
     for s = 1:num_subjects
-        x = NaN(num_channels, 1);
-        y = total_charge(s, :)'; y = y ./ mean(y);
-        for c = 1:num_channels % Make sure we are comparing correctly
+        [x,y] = deal(NaN(num_channels, 1));
+        for c = 1:length(y) % Make sure we are comparing correctly
             dt_idx = [DetectionData{s}.Channel] == c;
             if all(dt_idx == 0)
                 continue
             end
-            x(c) = median(DetectionData{s}(dt_idx).Threshold, 'omitnan');
-        end
-        if all(isnan(x))
-            continue
-        end
-        idx = ~isnan(x) & ~isinf(x);
-        x_trim = x(idx); y_trim = y(idx);
-        % Exponential curve fit
-        f = fit(x_trim, y_trim, 'exp1');
 
-        % Plot
-        scatter(x_trim, y_trim, 30, SubjectColors(u_part{s}), 'filled')
-        plot(xq, feval(f, xq), 'Color', SubjectColors(u_part{s}), 'LineStyle', '--')
+            % Assign
+            x(c) = total_charge(s, c);
+            y(c) = DetectionData{s}(dt_idx).ThresholdDateLinReg(1);
+        end
+        % Scatter
+        [scr(s), scp(s)] = corr(x, y, 'rows', 'complete');
+        scatter(x, y, 30, SubjectColors(u_part{s}), 'filled', 'MarkerFaceAlpha', .2)
+        % Line plot overlay
+        idx = ~isnan(y);
+        p = polyfit(x(idx), y(idx), 1);
+        plot(xl, polyval(p, xl), 'Color', SubjectColors(u_part{s}), 'LineStyle', '-','LineWidth', 2)
     end
-    
-    set(gca, 'YLim', [0, 6], 'XLim', [0 100])
-    xlabel(sprintf('Median Detection Threshold (%sA)', GetUnicodeChar('mu')))
-    ylabel('Relative Charge Delivered')
+    ylabel(sprintf('Slope (%sA/day)', GetUnicodeChar('mu')))
+    xlabel('Charge Delivered (mC)')
+    set(gca, 'Xlim', xl, ...
+             'XTick', xl, ...
+             'YLim', [-0.05 .1], ...
+             'YTick', [-0.05:.05:1])
 
-% DT-tau vs total charge
-sp_idx = sp_idx + 1;
-xq = linspace(0, 3e7);
-subplot(h,w,sp_idx); hold on
-    for s = 1:num_subjects
-        x = total_charge(s, :)';
-        y = NaN(num_channels, 1);
-        for c = 1:num_channels % Make sure we are comparing correctly
-            dt_idx = [DetectionData{s}.Channel] == c;
-            if all(dt_idx == 0)
-                continue
-            end
-            y(c) = DetectionData{s}(dt_idx).ThresholdDateCorrR;
-        end
-        if all(isnan(y))
-            continue
-        end
-        idx = ~isnan(y) & ~isinf(y);
-        x_trim = x(idx); y_trim = y(idx);
-        % Exponential curve fit
-        f = fit(x_trim, y_trim, 'exp1');
-
-        % Plot
-        scatter(x_trim, y_trim, 30, SubjectColors(u_part{s}), 'filled')
-        plot(xq, feval(f, xq), 'Color', SubjectColors(u_part{s}), 'LineStyle', '--')
-        [corr_coeffs(s,2), corr_coeffs_p(s,2)] = corr(x,y, 'Rows', 'complete', 'Type', 'Kendall');
-    end
-    
-    set(gca, 'XLim', [0, 3e7], 'YLim', [-1 1])
-    ylabel('Duration:Threshold Correlation')
-    xlabel('Charge Delivered')
-
-shg
+AddFigureLabels(gcf, [.05 -.015])
+export_figure3x(FigurePath, 'DetectionCorrelations')
 
 return
 
 %% Individual participant raster + line plots
-s = 1;
+s = 4;
 h = 2; w = 2;
 
 clf; 

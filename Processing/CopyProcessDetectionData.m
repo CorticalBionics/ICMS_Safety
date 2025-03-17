@@ -3,8 +3,8 @@ source_folder = 'T:\SessionData';
 target_folder = 'U:\UserFolders\CharlesGreenspon\BCI_DetectionThresholds\Data';
 
 location = 'Chicago';
-subject_session = {'BCI02', 900; ...
-                   'BCI03', 201; ...
+subject_session = {'BCI02', 923; ...
+                   'BCI03', 212; ...
                    'CRS02b', 0; ...
                    'CRS07', 0; ...
                    'CRS08', 0}; 
@@ -76,7 +76,6 @@ for s = 1:size(subject_session,1)
             OLSData(set_idx).Date = OLSData(set_idx).SDO(1).sessionInfo.date; 
             % Old
             if strcmp(OLSData(set_idx).DataType, 'DetectionData')
-                OLSData(set_idx).ResponseTable = response_table;
                 OLSData(set_idx).Threshold = OLSData(set_idx).SDO(end).threshold;
                 OLSData(set_idx).Method = 'OldTransformedStaircase';
 
@@ -85,7 +84,6 @@ for s = 1:size(subject_session,1)
                 if ~isfield(OLSData(set_idx).SDO(1), 'DetectionParadigm') || isempty(OLSData(set_idx).SDO(1).DetectionParadigm)
                     continue
                 end
-                OLSData(set_idx).ResponseTable = response_table;
                 OLSData(set_idx).Threshold = OLSData(set_idx).SDO(end).DetectionThreshold;
                 OLSData(set_idx).Method = OLSData(set_idx).SDO(1).DetectionParadigm;
             else
@@ -114,7 +112,6 @@ if any(data_added)
                                   'Set', [], ...
                                   'Channel', [], ...
                                   'Date', [],...
-                                  'ResponseTable', [], ...
                                   'Threshold', [], ...
                                   'Method', []);
 
@@ -138,8 +135,11 @@ if any(data_added)
             % Load OLS Data
             load(fullfile(target_folder, subject_session{s,1}, subject_session_data(i).name))
             % Remove extra fields
-            if any(strcmp(fieldnames(OLSData), 'Paradigm'))
-                OLSData = rmfield(OLSData, {'Paradigm', 'TestLogComments', 'VMData'});
+            fn = {'Paradigm', 'TestLogComments', 'VMData', 'ResponseTable'};
+            for f = 1:length(fn)
+                if any(strcmp(fieldnames(OLSData), fn{f}))
+                    OLSData = rmfield(OLSData, fn{f});
+                end
             end
             % Orient structure
             if size(OLSData,2) > size(OLSData,1)

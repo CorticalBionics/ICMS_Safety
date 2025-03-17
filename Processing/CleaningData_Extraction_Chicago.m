@@ -1,6 +1,4 @@
-%Export cleaning data
-% addpath(genpath('C:\git\climber\src\VoltageMonitor\utilities'))
-
+%% Export cleaning data
 subject_ids = {'BCI02', 'BCI03'};
 output_path = fullfile(DataPath, "CleaningData");
 data_path = "T:\SessionData";
@@ -31,7 +29,7 @@ for s = 1:length(subject_ids)
             msg = InlineProgressBar('Loading %d/%d', [f,length(flist)], msg);
             load(fullfile(sub_data_path, flist(f).name, expected_fname));
         else
-            warning('No .mat file found in %s\n', flist(f).name)
+            warning('No .mat file found in %s:%s\n', subject_ids{s}, flist(f).name)
             continue
         end
         
@@ -53,7 +51,9 @@ for s = 1:length(subject_ids)
         for i = 1:length(VMData)
             
             % Check if Set was cleaning protocol (same channels length)
-            chan_correct = length(VMData(i).Channels) == 12 || length(VMData(i).Channels) == 11 || sum(ismember(VMData(i).Channels, [3 32 35 64])) > 2;
+            chan_correct = length(VMData(i).Channels) == 12 || ...
+                           length(VMData(i).Channels) == 11 || ...
+                           sum(ismember(VMData(i).Channels, [3 32 35 64])) > 2;
             len_correct = length(VMData(i).Amplitudes{1, 1}) == 50;
     
             if ~chan_correct || ~len_correct %Check for cleaning data
@@ -87,8 +87,8 @@ for s = 1:length(subject_ids)
                         change_in_wave = abs(diff(wave_temp));
         
                         % Get index of v_inter
-                        idx_start = find(change_in_wave(1:pulse_hw/2) < (0.01 * max(abs(wave_temp))), 1, 'last') + 1; %DOUBLE CHEC
-                        idx_stop = find(change_in_wave(end-pulse_hw:end) < (0.01 * max(abs(wave_temp))), 1, 'first') -1 + pulse_hw; %DOUBLE CHECK
+                        idx_start = find(change_in_wave(1:pulse_hw/2) < (0.01 * max(abs(wave_temp))), 1, 'last') + 1;
+                        idx_stop = find(change_in_wave(end-pulse_hw:end) > (0.01 * max(abs(wave_temp))), 1, 'last') -1 + pulse_hw;
                         inter_idx = idx_start + round((idx_stop - idx_start) * idx_ratio);
         
                         if ~isempty(inter_idx) % Skip weird waveforms
@@ -147,80 +147,109 @@ for s = 1:length(subject_ids)
 end
 
 
+%% Combine all sessions
+flist = dir(fullfile(output_path, '*.mat'));
+data = cell(length(flist), 1);
+num_electrodes = 64;
 
+for f = 1:length(flist)
+    temp = load(fullfile(output_path, flist(f).name));
+    if isfield(temp, 'data')
+        data{f} = temp.data;
+    elseif isfield(temp, 'combined_data') % Process the old format dataset
+        temp.data = struct('Subject', [], ...
+                          'Date', [], ...
+                          'Session', [], ...
+                          'Set', [], ...
+                          'channels', [], ...
+                          'vmin', [], ...
+                          'vmax', [], ...
+                          'vinter', [], ...
+                          'waveform', [], ...
+                          'Amp', [], ...
+                          'avg_waveform', []); 
+        ii = 1;
+        % Remove empties
+        all_part = {temp.combined_data.Subject};
+        empty_idx = cellfun(@isempty, all_part);
+        temp.combined_data = temp.combined_data(~empty_idx);
+        % Handle weird char struct
+        all_part = {temp.combined_data.Subject};
+        all_part = cellfun(@string, all_part, 'UniformOutput', false);
+        all_part = cat(2, all_part{:});
+        u_parts = unique(all_part);
+        % Get dates
+        all_dates = [temp.combined_data.Date];
+        amp_idx = [temp.combined_data.Amp] == 10;
+        for p = 1:length(u_parts)
+            p_idx = strcmp(all_part, u_parts{p});
+            u_dates = unique(all_dates(p_idx));
+            for d = 1:length(u_dates)
+                % Add to new structure
+                temp.data(ii).Subject = u_parts{p};
+                temp.data(ii).Date = u_dates(d);
+                temp.data(ii).Amp = 10; % We're only comparing these 
+                % Don't care about session/set/channels here so can leave empty
 
-%%
-
-
-
-% Set up struct for each day
-
-
+                % Format VM data
+                idx = find(all_dates == u_dates(d) & p_idx & amp_idx);
+                if isempty(idx)
+                    continue
+                end
+                [temp.data(ii).vmin, temp.data(ii).vmax, temp.data(ii).vinter] = deal(NaN(num_electrodes, 1));
+                temp.data(ii).waveform = cell(num_electrodes, 1);
+                temp.data(ii).avg_waveform = NaN(num_electrodes, size(temp.combined_data(idx(1)).avg_waveform, 2));
+                for i = 1:length(idx)
+                    % Assign to above structures based on channel idx
+                    ch_idx = temp.combined_data(idx(i)).channels;
+                    temp.data(ii).vmin(ch_idx) = temp.combined_data(idx(i)).vmin;
+                    temp.data(ii).vmax(ch_idx) = temp.combined_data(idx(i)).vmax;
+                    temp.data(ii).vinter(ch_idx) = temp.combined_data(idx(i)).vinter;
+                    for c = 1:length(ch_idx)
+                        temp.data(ii).waveform{ch_idx(c), 1} = temp.combined_data(idx(i)).waveform{c};
+                    end
+                    temp.data(ii).avg_waveform(ch_idx, :) = temp.combined_data(idx(i)).avg_waveform;
+                end
+                ii = ii + 1;
+            end
+        end
+        data{f} = temp.data;
+    else
+        error('Unsupported data')
+    end
+end
+data = cat(2, data{:});
+data = data(~cellfun(@isempty, {data.Amp})); % Remove empties
+clearvars -except data
+save(fullfile(DataPath, 'CleaningData_Full.mat'), 'data', '-v7.3')
 
 return
-%% Export a combined matfile
-% flist = dir(fullfile(output_path, '*.mat'));
-% data = cell(length(flist), 1);
-% 
-% for f = 1:length(flist)
-%     temp = load(fullfile(output_path, flist(f).name));
-%     data{f} = temp.data;
-% end
-% data = cat(1, data{:});
+%% Convert to participant:date format and save
+u_part = unique({data.Subject});
+u_part = unique(cellfun(@(c) c(1:5), u_part, 'UniformOutput', false));
+subj_list = {data.Subject};
+date_list = [data.Date];
+amps = [data.Amp];
 
-save(fullfile(output_path, 'CleaningData_All.mat'), 'data', '-v7.3')
+cleaning_data = cell(size(u_part));
 
-%% make plot 
-
-load('P:\users\tgh28\Experiments\Longitudinal_ICMS\cleaning_data\CleaningData_All.mat')
-
-%%
-implant_date = datetime('04-May-2016', 'InputFormat', 'dd-MMM-yyyy');
-
-% Initialize
-day_since_start_all = cell(64, 1);  
-vinter_all = cell(64, 1);
-
-% Collect data for each channel across all iterations
-for i = 1:length(data) 
-    chs = data(i).channels;
-    day_since_start = days(data(i).Date - implant_date);  % Calculate days since implant
-
-    for c = 1:length(chs)
-        ch = chs(c);
-        
-        if data(i).Amp == 20
-            % Append the day_since_start and vinter value for each channel
-            day_since_start_all{ch} = [day_since_start_all{ch}; day_since_start];
-            vinter_all{ch} = [vinter_all{ch}; data(i).vinter(ch)];
-        end
+for p = 1:length(u_part)
+    p_idx = contains(subj_list, u_part(p));
+    u_dates = unique([data(p_idx).Date]);
+    for d = 1:length(u_dates)
+        % Struct entry for each day
+        cleaning_data{p}(d).date = u_dates(d);
+        % Get matching data & only take Amp == 10 data because UC only has that for most days
+        idx = p_idx & date_list == u_dates(d) & amps == 10;
+        temp = data(idx);
+        % Everything is already in 64x1, so just concatenate on 2nd dim and nanmean
+        cleaning_data{p}(d).vmin = median(cat(2, temp.vmin), 2, 'omitnan');
+        cleaning_data{p}(d).vinter = median(cat(2, temp.vinter), 2, 'omitnan');
+        cleaning_data{p}(d).vmax = median(cat(2, temp.vmax), 2, 'omitnan');
+        % 3rd dim for waveform
+        cleaning_data{p}(d).wf = median(cat(3, temp.avg_waveform), 3, 'omitnan');
     end
 end
 
-% plot each channel
-[ch_corrs, ch_coeff] = deal(NaN(64,1));
-for ch = 1%:64
-    if ~isempty(day_since_start_all{ch})  % Plot only if data exists for the channel
-        figure(ch);
-        x = day_since_start_all{ch};
-        y = vinter_all{ch};
-        nan_idx = isnan(y);
-        x = x(~nan_idx);
-        y = y(~nan_idx);
-        y = movmedian(y, 10);
+save(fullfile(DataPath, 'CleaningData.mat'), 'cleaning_data', '-v7.3')
 
-        scatter(x,y, 20, "black", "filled"); hold on
-        [ch_corrs(ch),cp] = corr(x,y, 'Rows', 'complete');
-        p = polyfit(x,y,1);
-        ch_coeff(ch) = p(1);
-        plot([min(x), max(x)], polyval(p, [min(x), max(x)]), 'Color', 'k')
-
-        title(sprintf('Ch %d', ch));
-        xlabel('Days Since Implant');
-        ylabel(sprintf('Interphase Voltage (%sA)', GetUnicodeChar('mu')));
-        hold off;
-        set(gca, 'YLim', [-8 2])
-    end
-end
-
-clf; subplot(1,2,1); Swarm(1, ch_corrs, 'DS', 'Box'); subplot(1,2,2); Swarm(1, ch_coeff, 'DS', 'Box')

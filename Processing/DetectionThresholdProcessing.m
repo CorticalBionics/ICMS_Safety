@@ -49,8 +49,10 @@ for s = 1:length(subjects)
         n_idx = ~isnan(y) & ~isinf(y);
         if all(~n_idx) || length(y) < 10
             [formatted_struct(c).ThresholdDateCorrR, formatted_struct(c).ThresholdDateCorrP] = deal(NaN);
+            formatted_struct(c).ThresholdDateLinReg = [NaN, NaN];
         else
             [formatted_struct(c).ThresholdDateCorrR, formatted_struct(c).ThresholdDateCorrP] = corr(x(n_idx), y(n_idx), 'Rows', 'complete', 'Type', 'Kendall');
+            formatted_struct(c).ThresholdDateLinReg = polyfit(x(n_idx), y(n_idx), 1);
         end
     end
     subject_structs{s} = formatted_struct;
