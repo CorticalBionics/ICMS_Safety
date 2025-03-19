@@ -3,15 +3,15 @@ source_folder = 'T:\SessionData';
 target_folder = 'U:\UserFolders\CharlesGreenspon\BCI_DetectionThresholds\Data';
 
 location = 'Chicago';
-subject_session = {'BCI02', 923; ...
-                   'BCI03', 212; ...
+subject_session = {'BCI02', 890; ...
+                   'BCI03', 201; ...
                    'CRS02b', 0; ...
                    'CRS07', 0; ...
                    'CRS08', 0}; 
 
 response_table_format = [["Trial", "double"]; ...
                          ["Amplitude", "double"]; ...
-                         ["Frequency", "double"]; ...
+                         ["Frequency", "double"]; ...5
                          ["Duration", "double"]; ...
                          ["SelectedInt", "double"]; ...
                          ["Correct", "logical"]];
@@ -67,27 +67,56 @@ for s = 1:size(subject_session,1)
         end
         OLSData = OLSData(dt_idx);
 
-        % Process each set
+        % Make trial table
         for set_idx = 1:size(OLSData,1)
             if isa(OLSData(set_idx).SDO, 'cell')
                 continue
             end
             OLSData(set_idx).Channel = OLSData(set_idx).SDO(1).channel;
-            OLSData(set_idx).Date = OLSData(set_idx).SDO(1).sessionInfo.date; 
-            % Old
+            OLSData(set_idx).Date = OLSData(set_idx).SDO(1).sessionInfo.date;
+            response_table = table('Size',[size(OLSData(set_idx).SDO,1), size(response_table_format,1)],... 
+                                   'VariableNames', response_table_format(:,1),...
+                                   'VariableTypes', response_table_format(:,2));
+            % Table when using old detection tab
             if strcmp(OLSData(set_idx).DataType, 'DetectionData')
+                for t = 1:size(OLSData(set_idx).SDO,1)
+                    response_table{t, "Trial"} = t;
+                    response_table{t, "Amplitude"} = OLSData(set_idx).SDO(t).amplitude;
+                    response_table{t, "Frequency"} = OLSData(set_idx).SDO(t).frequency;
+                    response_table{t, "Duration"} = OLSData(set_idx).SDO(t).duration;
+                    if isempty(OLSData(set_idx).SDO(t).reportedData.stimulusInterval)
+                        response_table{t, "SelectedInt"} = NaN;
+                    else
+                        response_table{t, "SelectedInt"} = OLSData(set_idx).SDO(t).reportedData.stimulusInterval;
+                        response_table{t, "Correct"} = OLSData(set_idx).SDO(t).success;
+                    end
+                end
+                OLSData(set_idx).ResponseTable = response_table;
                 OLSData(set_idx).Threshold = OLSData(set_idx).SDO(end).threshold;
                 OLSData(set_idx).Method = 'OldTransformedStaircase';
 
-            % New
+            % Table when using new detection tab
             elseif strcmp(OLSData(set_idx).DataType, 'DetectionV2Data')
                 if ~isfield(OLSData(set_idx).SDO(1), 'DetectionParadigm') || isempty(OLSData(set_idx).SDO(1).DetectionParadigm)
                     continue
                 end
+                for t = 1:size(OLSData(set_idx).SDO,1)
+                    response_table{t, "Trial"} = t;
+                    response_table{t, "Amplitude"} = OLSData(set_idx).SDO(t).amplitude;
+                    response_table{t, "Frequency"} = OLSData(set_idx).SDO(t).frequency;
+                    response_table{t, "Duration"} = OLSData(set_idx).SDO(t).duration;
+                    if ~isfield(OLSData(set_idx).SDO(t).reportedData, 'value')
+                        response_table{t, "SelectedInt"} = NaN;
+                    else
+                        response_table{t, "SelectedInt"} = OLSData(set_idx).SDO(t).reportedData.value;
+                        response_table{t, "Correct"} = OLSData(set_idx).SDO(t).DetectionLogit;
+                    end
+                end
+                OLSData(set_idx).ResponseTable = response_table;
                 OLSData(set_idx).Threshold = OLSData(set_idx).SDO(end).DetectionThreshold;
                 OLSData(set_idx).Method = OLSData(set_idx).SDO(1).DetectionParadigm;
             else
-                error('Invalid DataType')
+                break
             end
         end
         OLSData = rmfield(OLSData, {'SDO', 'DataType'});
@@ -99,7 +128,8 @@ for s = 1:size(subject_session,1)
         data_added(s) = true;
     end
 end
-%%
+
+%% Combine data across subjects
 data_added = true(size(subject_session,1),1);
 if any(data_added)
     for s = 1:size(subject_session,1)
@@ -112,6 +142,7 @@ if any(data_added)
                                   'Set', [], ...
                                   'Channel', [], ...
                                   'Date', [],...
+                                  'ResponseTable', [],...
                                   'Threshold', [], ...
                                   'Method', []);
 
@@ -135,7 +166,7 @@ if any(data_added)
             % Load OLS Data
             load(fullfile(target_folder, subject_session{s,1}, subject_session_data(i).name))
             % Remove extra fields
-            fn = {'Paradigm', 'TestLogComments', 'VMData', 'ResponseTable'};
+            fn = {'Paradigm', 'TestLogComments', 'VMData'};
             for f = 1:length(fn)
                 if any(strcmp(fieldnames(OLSData), fn{f}))
                     OLSData = rmfield(OLSData, fn{f});
@@ -145,8 +176,8 @@ if any(data_added)
             if size(OLSData,2) > size(OLSData,1)
                 OLSData = OLSData'; 
             end
-            % Only add ones with the 'method' tag as these were formatted properly
-            if any(strcmp(fieldnames(OLSData), 'Method'))
+            % Only add ones with the 'Method' and 'ResponseTable' fields as these were formatted properly
+            if any(strcmp(fieldnames(OLSData), 'Method')) && any(strcmp(fieldnames(OLSData), 'ResponseTable'))
                 RawDetectionData(size(RawDetectionData,1):size(RawDetectionData,1)+size(OLSData,1)-1,1) = OLSData;
             else
                 warning(fullfile(target_folder, subject_session{s,1}, subject_session_data(i).name))

@@ -55,6 +55,13 @@ for s = 1:num_subjects
     % Vectorize
     d = cat(2, d{:});
     t = round(cat(2, t{:}));
+
+    % Sort and find time to first sensation
+    [~, sort_idx] = sort(d);
+    d = d(sort_idx);
+    t = t(sort_idx);
+    ttfs_idx = find(~isnan(t) & ~isinf(t) & t < t_max, 1, 'first');
+    fprintf('%s ttfs: %d\n', subjects{s}, d(ttfs_idx))
     
     % Discretize
     dv = cell(size(dx)); % Thresholds in each bin
@@ -131,7 +138,7 @@ axes('Position', [ax_xs(2), ax_ys(2), ax_w, ax_h]); hold on
         y = y(1:2:end);
         Swarm(s, y, SubjectColors(u_part{s}), 'DistributionWidth', .35, 'DS', 'Box', 'SPL', 0)
     end
-    set(gca, 'Ylim', [-.1 .2], ...
+    set(gca, 'Ylim', [-.1 .1], ...
              'XTick', [1:5], ...
              'XTickLabel', ColorText(subjects, SubjectColors(u_part)), ...
              'XLim', [.5 5.5], ...
@@ -255,7 +262,7 @@ export_figure3x(FigurePath, 'DetectionCorrelations')
 return
 
 %% Individual participant raster + line plots
-s = 4;
+s = 1;
 h = 2; w = 2;
 
 clf; 
@@ -338,7 +345,7 @@ subplot(h,w,2); hold on
 % Summary detection threshold
 subplot(h,w,4); hold on
     col = repmat(SubjectColors(u_part{s}), length(DetectionData{s}), 1);
-    % Color code correlatinos by significance
+    % Color code correlations by significance
     idx = [DetectionData{s}.ThresholdDateCorrP] > 0.05;
     col(idx,:) = .8;
     Swarm(1, [DetectionData{s}.ThresholdDateCorrR], 'SwarmColor', col)
