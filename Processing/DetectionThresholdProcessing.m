@@ -47,7 +47,7 @@ for s = 1:length(subjects)
         x = formatted_struct(c).DateFromImplant';
         y = formatted_struct(c).Threshold';
         n_idx = ~isnan(y) & ~isinf(y);
-        if all(~n_idx) || length(y) < 10
+        if all(~n_idx) || length(y) < 5
             [formatted_struct(c).ThresholdDateCorrR, formatted_struct(c).ThresholdDateCorrP] = deal(NaN);
             formatted_struct(c).ThresholdDateLinReg = [NaN, NaN];
         else
@@ -56,13 +56,6 @@ for s = 1:length(subjects)
         end
     end
     subject_structs{s} = formatted_struct;
-
-    % Check max days
-
-    % Count total detection threshold measurements
-    ndt = cellfun(@length, {formatted_struct.Threshold});
-    fprintf('%s: %d total DTs (%0.1f %s %0.1f)\n', ...
-        subjects{s}, sum(ndt), mean(ndt), GetUnicodeChar("PlusMinus"), std(ndt))
 end
 DetectionData = subject_structs;
 save(fullfile(DataPath, 'DetectionData'), 'DetectionData');

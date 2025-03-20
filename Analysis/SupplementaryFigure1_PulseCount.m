@@ -47,17 +47,18 @@ for pi = 1:num_part
 end
 
 fprintf('\nTotal pulses across participants: %d\n', sum(total_pulse_count))
-%% Plot (Vertical)
+
+%% Supplementary Figure 1
 max_pulses = 1e4;
 cmap = ColorGradient([1 1 1], rgb(21, 101, 192));
 SetFont('Arial', 9)
 
 clf; 
-set(gcf, 'Units', 'Inches', 'Position', [27, 1, 6.5, 9])
+set(gcf, 'Units', 'Inches', 'Position', [27, 1, 6.5, 8.5])
 
 % Heatmaps
-[ax_size, ax_val] = GetAxisCoords(5, 0.05, 0.04);
-ax_val = flipud(ax_val);
+[ax_size, ax_val] = GetAxisCoords(num_part, 0.04, 0.04);
+ax_val = flipud(ax_val); ax_val = ax_val + 0.01;
 xs = 0.1; xw = 0.3; yh = ax_size;
 for pi = 1:num_part
     % Get pulses for heatmap
@@ -110,8 +111,8 @@ for pi = 1:num_part
             [gy,gx] = ind2sub(size(array_maps{a}), i); % Get grid position
             y = [gx, gx, gx+1, gx+1]+ y_offset;
             x = [gy, gy+1, gy+1, gy];
-            if isnan(array_maps{a}(i)) % Show empty channels as white
-                patch(x, y, [1 1 1], 'EdgeColor', [.6 .6 .6])
+            if isnan(array_maps{a}(i)) % Show empty channels as gray
+                patch(x, y, [.8 .8 .8], 'EdgeColor', [.6 .6 .6])
             else
                 cidx = round((sum_pulses(array_maps{a}(i)) / max(sum_pulses)/0.5) * 255);
                 if cidx > 255
@@ -129,13 +130,13 @@ end
 
 
 % Colorbar
-c = ColorbarLegend(gcf, [xs+0.07 ax_val(end)-0.015 0.16 0.01], cmap, 'Horz', [0 1]);
+c = ColorbarLegend(gcf, [xs+0.07 ax_val(end)-0.02 0.155 0.01], cmap, 'Horz', [0 1]);
 x = xlabel('p(Pulses)', 'VerticalAlignment', 'bottom');
 
 % Summary statistics
 xs = 0.74; xw = 0.225;
 [ax_size, ax_val] = GetAxisCoords(7, 0.05, 0.04);
-ax_val = flipud(ax_val);
+ax_val = flipud(ax_val); ax_val = ax_val + 0.01;
 clearvars ax
 % Custom y-labels
 l = {'Total # Pulses', 'Pulses/Session', 'Pulses/Electrode', 'Total Charge (mC)', ...
@@ -159,11 +160,18 @@ for pi = 1:num_part
     Swarm(pi, total_charge(pi), SubjectColors(u_part{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(4))
     Swarm(pi, charge_per_session{pi}, SubjectColors(u_part{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(5))
     Swarm(pi, total_charge_per_electrode(pi,:), SubjectColors(u_part{pi}), 'DS', 'Box', 'SPL', 0, 'Parent', ax(6))
-    Swarm(pi, (total_charge_per_electrode(pi,:) ./ total_pulse_per_electrode(pi,:)) .* conversion_factor, SubjectColors(u_part{pi}),...
-        'DS', 'Box', 'SPL', 0, 'Parent', ax(7)) % Convert back to nanocoulombs
+    Swarm(pi, (total_charge_per_electrode(pi,:) ./ total_pulse_per_electrode(pi,:)) .* conversion_factor, ...
+        SubjectColors(u_part{pi}), 'DS', 'Box', 'SPL', 0, 'Parent', ax(7)) % Convert back to nanocoulombs
 end
 % Format
 set(ax(end), 'XTickLabel', ColorText(u_part_alt, SubjectColors(u_part)))
+
+all_ax = get(gcf(), 'Children');
+
+% Axis labels
+AddFigureLabels(all_ax(19), [0.075, 0.025], 64)
+AddFigureLabels(all_ax(13), [-0.025, 0.025], 65)
+AddFigureLabels(all_ax([7:-1:1]), [0.05, 0.025], 66)
 
 shg
 
