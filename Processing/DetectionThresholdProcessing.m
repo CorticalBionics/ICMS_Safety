@@ -51,7 +51,8 @@ for s = 1:length(subjects)
             [formatted_struct(c).ThresholdDateCorrR, formatted_struct(c).ThresholdDateCorrP] = deal(NaN);
             formatted_struct(c).ThresholdDateLinReg = [NaN, NaN];
         else
-            [formatted_struct(c).ThresholdDateCorrR, formatted_struct(c).ThresholdDateCorrP] = corr(x(n_idx), y(n_idx), 'Rows', 'complete', 'Type', 'Kendall');
+            [formatted_struct(c).ThresholdDateCorrR, formatted_struct(c).ThresholdDateCorrP] = corr(x(n_idx), y(n_idx),...
+                'Rows', 'complete', 'Type', 'Spearman');
             formatted_struct(c).ThresholdDateLinReg = polyfit(x(n_idx), y(n_idx), 1);
         end
     end

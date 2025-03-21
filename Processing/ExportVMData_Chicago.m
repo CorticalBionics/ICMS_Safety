@@ -16,8 +16,19 @@ for s = 1:length(subj_list)
             continue
         end
     
-        % Load the JSON
-        json_fname = sprintf('%s_session_%s.json', subj_list{s}, vm_collection_list(c).name(4:end));
+        % Load the JSON - for some unknown reasons the dates are inconsistent
+        fsplit = strsplit(vm_collection_list(c).name(4:end), '_');
+        json_fname1 = sprintf('%s_session_%s_%s_%s.json', subj_list{s}, fsplit{1}, fsplit{2}, fsplit{3});
+        json_fname2 = sprintf('%s_session_%s_%s_%s.json', subj_list{s}, fsplit{2}, fsplit{3}, fsplit{1});
+        if exist(fullfile(vm_path, json_fname1), "file")
+            json_fname = json_fname1;
+        elseif exist(fullfile(vm_path, json_fname2), "file")
+            json_fname = json_fname2;
+        else
+            warning('No file: %s', json_fname1)
+            return
+        end
+
         fprintf('Loading %s\n', json_fname)
     
         try

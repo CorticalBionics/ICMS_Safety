@@ -28,7 +28,7 @@ for s = 1:length(subject_ids)
             dn = datetime([str2double(fsplit{2}), str2double(fsplit{3}), str2double(fsplit{4})]);
             load(expected_ffname);
         else
-            warning('No .mat file found in %s', flist(f).name)
+            warning('No .mat file found in %s\n', flist(f).name)
             continue
         end
 
@@ -79,16 +79,11 @@ for f = 1:length(flist)
     end
 
     data{f} = temp.data;
-end
-
-%%
-for f = 1:length(data)
     if any(strcmp(data{f}.Properties.VariableNames, 'Waveforms'))
         data{f}.Waveforms = [];
     end
 end
 
-%%
 data = cat(1, data{:});
 
 save(fullfile(DataPath, 'VMData_All'), "data")

@@ -14,6 +14,16 @@ for s = 1:num_subjects
     fprintf('Per electrode median (range): %1.0f (%1.0f-%1.0f)\n', prctile(ndt, [50, 25, 75]));
 end
 
+%% ANOVA on ddt/day slopes
+[slopes_all, g1, g2] = deal(cell(length(DetectionData), 1));
+for s = 1:length(DetectionData)
+    y = [DetectionData{s}.ThresholdDateLinReg];
+    slopes_all{s} = y(1:2:end)';
+    g1{s} = repelem(s, length(slopes_all{s}), 1);
+end
+
+anova_tab = anovan(cat(1, slopes_all{:}), cat(1, g1{:}));
+
 %% Analyze
 dw = 250; % Bin width in days
 subj_max_days = zeros(size(DetectionData));
@@ -40,7 +50,7 @@ for s = 1:num_subjects
         d{i} = DetectionData{s}(ch_idx).DateFromImplant;
         t{i} = DetectionData{s}(ch_idx).Threshold;
         
-        % Find the last value with threshold below 'threshold'
+        % Find threshold for each bin
         for j = 1:length(dx)
             if dx(j) > subj_max_days(s)
                 break
