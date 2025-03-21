@@ -71,7 +71,7 @@ startTDMScmpr    = regexp(tdmsfiles{1},'Set');
 endTDMScmpr      = regexp(tdmsfiles{1},'-');
 cmprTDMSsrc      = char(tdmsfiles);
 temp_cmprTDMSsrc = cmprTDMSsrc(:,startTDMScmpr:endTDMScmpr(1));
-temp_cmprTDMSsrc = temp_cmprTDMSsrc(:,1:end-3);
+temp_cmprTDMSsrc = temp_cmprTDMSsrc(:,1:end-4);
 temp_cmprTDMSsrc = cellstr(temp_cmprTDMSsrc);
 matches          = false(length(temp_cmprQLsrc),1);
 for cmprind = 1:length(temp_cmprTDMSsrc)
@@ -79,6 +79,9 @@ for cmprind = 1:length(temp_cmprTDMSsrc)
 end
 ql_files    = ql_files(logical(matches));
 ql_path     = input_dir;
+if isempty(ql_files)
+    error('No matching QL files')
+end
 
 matfiles  = matfiles(~cellfun(@isempty,matfiles));
 matfiles  = strcat(savedir,matfiles);   % Add path to the front of matfiles
@@ -101,7 +104,6 @@ ignorelist = {'ACKNOWLEDGE', 'AJA_CONFIG', 'CERESTIM_ALIVE', 'CERESTIM_CONFIG_CH
 
 
 % Loop through list of tdms files on each iteration to process
-msg = '';
 for TDMSfile_num = 1:length(tdmsfiles)
     % msg = InlineProgressBar('Loading TDMS file %d/%d', [TDMSfile_num, length(tdmsfiles)], msg);
     % fprintf('Processing TDMSfile %s\n\t\t File number:\t %d of %d \n',tdmsfiles{TDMSfile_num}, TDMSfile_num,length(tdmsfiles));
@@ -113,8 +115,9 @@ for TDMSfile_num = 1:length(tdmsfiles)
     % select the associated QL file to process   
     cur_cmprTDMSsrc     = temp_cmprTDMSsrc{TDMSfile_num};
     matches             = ~cellfun(@isempty, regexp(ql_files,cur_cmprTDMSsrc));
-    quickfile           = fullfile(ql_path,ql_files(matches));
+    % quickfile           = fullfile(ql_path,ql_files(matches));
     % [~,idata]           = prepData('files',quickfile, 'get_full_log', ignorelist);
+    
     idata = Raw2Intermediate(char(ql_path), ql_files(matches), ignorelist, false);
     if isempty(idata)
         % sprintf('prepData failed to pick up data.  Moving to next file...\n');
@@ -244,7 +247,7 @@ for TDMSfile_num = 1:length(tdmsfiles)
                     tdmsdata.Data(chanID).snippet(:,end+1)   = chan_data';
                     tdmsdata.Data(chanID).maxV(end+1,:)      = max(chan_data);
                     tdmsdata.Data(chanID).minV(end+1,:)      = min(chan_data);
-                    [~,minind]                               = min(chan_data);
+                    % [~,minind]                               = min(chan_data);
                      % tdmsdata.Data(chanID).inter(end+1,:)     = chan_data(minind + configmod.interphase(1)/10);
                     if tbl_idx <= length(de_ts)
                         tdmsdata.Data(chanID).timestamps(end+1,:)                 = de_ts(tbl_idx);

@@ -3,41 +3,29 @@ addpath(genpath('C:\git\climber\src\VoltageMonitor\utilities'))
 addpath(genpath("P:\users\tgh28\ChartWithCharles")); %For progress bar
 
 %Set Up Folders
-data_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_data_combined";
-output_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\cleaning_data2";
+data_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_data_oldFormat2";
+output_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\cleaning_data_oldFormat";
 
-% Count the number of pulses
+msg = '';
 
-%Format of output data
-% temp = table('Size', [1, 10], ...
-%     'VariableNames', {'Subject', 'Date', 'Vmin10', 'Vinter10', 'Vmax10', 'Waveforms10', ...
-%     'Vmin20', 'Vinter20', 'Vmax20', 'Waveforms20'}, ...
-%     'VariableTypes', ["string", "datetime", "cell", "cell", "cell", "cell", ...
-%     "cell", "cell", "cell", "cell"]);
+%Stim Presets
+num_electrodes = 64;
+pulse_hw = 80; %50;
+pulse_dur = 700; % 200 cathodic, 100 inter, 400 anodic
+idx_ratio = 300 / pulse_dur;
+
+%% Only for CRS02b
+clc; %To make a nice loading bar 
 
 %Get List of all the matfiles to go through
 flist = dir(fullfile(data_path, '*.mat'));
 
-msg = '';
+combined_data = struct('Subject', [], 'Date', [], 'Session', [], 'Set', [], 'channels', [], 'vmin', [], 'vmax', [], 'vinter', [], 'waveform', [], 'Amp', [], 'avg_waveform', []);
 
-%%
-
-%Stim Presets
-num_electrodes = 64;
-pulse_hw = 50;
-pulse_dur = 700; % 200 cathodic, 100 inter, 400 anodic
-idx_ratio = 300 / pulse_dur;
-
-% Set up struct for each day
-data = struct('Subject', [], 'Date', [], 'Session', [], 'Set', [], 'channels', [], 'vmin', [], 'vmax', [], 'vinter', [], 'waveform', [], 'Amp', [], 'avg_waveform', []);
-ii = 1;
-
+iii = 1; 
 
 %Go through each file
-for f = 1:length(flist) %f = 20 Weird wwaveforms
-
-    %Print loading file
-    msg = InlineProgressBar('Loading %d/%d', [f,length(flist)], msg);
+for f = 1:length(flist) 
 
     % Try to find mat file and get date
     expected_fname = flist(f).name;
@@ -47,14 +35,23 @@ for f = 1:length(flist) %f = 20 Weird wwaveforms
 
     elseif isfile(fullfile(data_path, expected_fname))
         fsplit = strsplit(flist(f).name, '_');
+ 
         dn = datetime([str2double(fsplit{5}(1:4)), str2double(fsplit{3}), str2double(fsplit{4})]);
+        dn = datetime(dn, 'InputFormat', 'dd-MMM-uuuu'); %double check that dn is correctly formatted 
+
         load(fullfile(data_path, expected_fname));
+
+        %Print loading file
+        msg = InlineProgressBar('Loading %d/%d', [f,length(flist)], msg);
 
     else
         warning('No .mat file found in %s', flist(f).name)
         continue
     end
 
+    % Set up struct for each day
+    data = struct('Subject', [], 'Date', [], 'Session', [], 'Set', [], 'channels', [], 'vmin', [], 'vmax', [], 'vinter', [], 'waveform', [], 'Amp', [], 'avg_waveform', []);
+    ii = 1;
 
     % Go through each trial
     for i = 1:length(VMData)
@@ -62,26 +59,43 @@ for f = 1:length(flist) %f = 20 Weird wwaveforms
         %First check if this trial was a cleaning protocol 
         num_electrodes = length(VMData(i).Channels);
         amps = unique(cell2mat(VMData(i).Amplitudes));
+
+        %Continue if not only 10uA or 20uA delivered 
         if ~all(amps == 10) && ~all(amps == 20)
                 continue
         end
 
+        %Make sure that 50 pulses were delivered
+        if length(VMData(i).Amplitudes{1, 1}) ~= 50
+            continue
+        end
+
+        %Initialize 
         [avg_vmax, avg_vinter, avg_vmin] = deal(NaN(num_electrodes, 1));
         waveform = cell(num_electrodes, 1);
-        avg_waveform = NaN(num_electrodes,100);
+        avg_waveform = NaN(num_electrodes,160); %make 160
 
-        %Go through each ch and get waveforms and average
+        %Go through each ch and get the waveforms and average
         for ch = 1:num_electrodes
 
+            %Check if channel = 0 (CMG added this check)
+            ch_idx = VMData(i).Channels(ch); %set channel
+            if ch_idx == 0
+                continue
+            end
+
+
             %Get all waveforms for cleaning protocol for that ch
-            waveforms = VMData(i).Waveforms{1,ch};
+            waveforms = VMData(i).Waveforms{ch}; %Waveforms{1,ch};
 
             %Check that waveforms are all the right length
-            if size(waveforms,1) == 160
+            if size(waveforms,1) == 160 %160 for old format 
 
                 [v_min, v_max, v_inter] = deal(zeros(size(waveforms, 2), 1));
-                saved_vmax = VMData(i).maxV{:,:};
-                saved_vmin = VMData(i).minV{:,:};
+                
+                %Calculated values from DAQ file
+                saved_vmax = VMData(i).maxV{1,ch};
+                saved_vmin = VMData(i).minV{1,ch};
 
                 %CALCULATE PER PULSE, THEN TAKE MEDIAN (each col is wave)
                 for w = 1:size(waveforms, 2)
@@ -91,8 +105,11 @@ for f = 1:length(flist) %f = 20 Weird wwaveforms
                     change_in_wave = abs(diff(wave_temp));
     
                     %Get index of v_inter
-                    idx_start = find(change_in_wave(1:pulse_hw/2) < (0.01 * max(abs(wave_temp))), 1, 'last') + 1; %DOUBLE CHECK
-                    idx_stop = find(change_in_wave(end-pulse_hw:end) < (0.01 * max(abs(wave_temp))), 1, 'first') -1 + pulse_hw; %DOUBLE CHECK
+                    mw = max(abs(wave_temp));
+                    idx_start = find(change_in_wave(1:pulse_hw/2) < (0.01 * mw), 1, 'last') + 1; %DOUBLE CHECK
+                    idx_stop = find(change_in_wave(pulse_hw:end) > (0.01 * mw), 1, 'last') + pulse_hw; %DOUBLE CHECK
+                    % [~, idx_stop] = max(change_in_wave(pulse_hw:end));
+                    % idx_stop = find(change_in_wave(end-pulse_hw:end) < (0.01 * mw), 1, 'first') -1 + pulse_hw; %DOUBLE CHECK
                     inter_idx = idx_start + round((idx_stop - idx_start) * idx_ratio);
     
                     if ~isempty(inter_idx) %Skip weird waveforms
@@ -113,11 +130,12 @@ for f = 1:length(flist) %f = 20 Weird wwaveforms
                 end
                 
                 %Get averages with median
-                avg_vmin(ch_idx) = median(v_min);
-                avg_vmax(ch_idx) = median(v_max);
-                avg_vinter(ch_idx) = median(v_inter);
-                waveform{ch_idx} = waveforms_mat;
-                avg_waveform(ch_idx,:) = median(waveforms_mat, 2);
+                avg_vmin(ch)       = median(v_min);
+                avg_vmax(ch)       = median(v_max);
+                avg_vinter(ch)     = median(v_inter);
+                waveform{ch}       = waveforms;
+                avg_waveform(ch,:) = median(waveforms, 2);
+
             else
                warning('Waveform length is not 160 for file %s, trial %d, channel %d', expected_fname, i, ch);
                continue;
@@ -136,6 +154,7 @@ for f = 1:length(flist) %f = 20 Weird wwaveforms
         temp.vinter = avg_vinter;
         temp.waveform = waveform;
         temp.avg_waveform = avg_waveform;
+
         if all(VMData(i).Amplitudes{1, 1} == 0) %Remove sets with 0 amplitudes
             warning('Amplitude was all zeros for %s, session %d, set %d', VMData(i).SubjectID, VMData(i).SessionNum, VMData(i).Set);
             continue
@@ -144,6 +163,8 @@ for f = 1:length(flist) %f = 20 Weird wwaveforms
                 temp.Amp = 10;
             elseif all(VMData(i).Amplitudes{1, 1} == 20)
                 temp.Amp = 20;
+            else
+                continue
             end
 
             %add to data struct
@@ -152,9 +173,20 @@ for f = 1:length(flist) %f = 20 Weird wwaveforms
         end
     end
 
+    %Add day to combined data struct
+    if iii == 1
+        combined_data = data;
+    else
+        combined_data = [combined_data, data]; %#ok<AGROW>
+    end
+    iii = iii + 1;
+
     % Export single file for one day of data
-    % save(fullfile(output_path, expected_fname), "CleaningData")
+    save(fullfile(output_path, expected_fname), "data")
 end
+
+save(fullfile(output_path, 'CleaningData_All_OldFormat.mat'), 'combined_data', '-v7.3')
+
 return
 %% Export a combined matfile
 % flist = dir(fullfile(output_path, '*.mat'));
@@ -166,7 +198,7 @@ return
 % end
 % data = cat(1, data{:});
 
-save(fullfile(output_path, 'CleaningData_All.mat'), 'data', '-v7.3')
+
 
 %% make plot 
 
