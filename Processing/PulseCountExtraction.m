@@ -70,7 +70,11 @@ for f = 1:length(flist)
     % Fix dates if not logged properly
     if isnat(temp.data.Date)
         fsplit = strsplit(flist(f).name, '_');
-        temp.data.Date = datetime([fsplit{5}(1:end-4), fsplit{3}, fsplit{4}], 'InputFormat', 'yyyyMMdd');
+        if contains(fsplit{end}, 'motor')
+            temp.data.Date = datetime([fsplit{5}, fsplit{3}, fsplit{4}], 'InputFormat', 'yyyyMMdd');
+        else
+            temp.data.Date = datetime([fsplit{5}(1:end-4), fsplit{3}, fsplit{4}], 'InputFormat', 'yyyyMMdd');
+        end
     end
     
     % Remove location

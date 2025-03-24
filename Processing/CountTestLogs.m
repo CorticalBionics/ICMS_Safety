@@ -1,5 +1,6 @@
 tld = 'T:\SessionData';
 subjects = {'BCI02', 'BCI03'};
+tlc = zeros(size(subjects));
 
 for s = 1:length(subjects)
     tlpath = fullfile(tld, subjects{s}, 'TestLogManager');
@@ -20,5 +21,5 @@ for s = 1:length(subjects)
             names{n} = fcat;
         end
     end
-    un = unique(names);
+    tlc(s) = length(unique(names));
 end

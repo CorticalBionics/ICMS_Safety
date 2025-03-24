@@ -12,6 +12,13 @@ conversion_factor = 1e6; % Nano to millicoulomb
 [total_pulse_per_electrode, total_charge_per_electrode] = deal(zeros(num_part, 64));
 [pulse_percentiles, charge_percentiles] = deal(zeros(num_part, 3));
 
+vn = {'Stim sessions', 'Total pulses', 'Pulses per session', ...
+      'Pulses per electrode', 'Total charge', 'Charge per session', ...
+      'Charge per electrode', 'Charge per phase'};
+vt = repmat("string", length(u_part_alt), 1);
+summary_table = table('Size', [8, 5], 'RowNames', vn, 'VariableNames', u_part_alt, ...
+                      'VariableTypes', vt);
+
 for pi = 1:num_part
     % Filter participant
     s_idx = strcmp(data.Subject, u_part(pi));
@@ -35,15 +42,15 @@ for pi = 1:num_part
     charge_percentiles(pi, :) = prctile(total_charge_per_electrode(pi,:), [25, 50, 75]);
     
     % Print summary stats
-    fprintf('\n%s:\n', u_part(pi))
-    fprintf('Total pulses delivered: %d\n', total_pulse_count(pi))
-    fprintf('Pulses per session: %0.1f (%0.1f - %0.1f)\n', prctile(pulse_count_per_session{pi}, [50, 25, 75]) ./ 1000)
-    fprintf('Pulses per electrode: %0.1f (%0.1f - %0.1f)\n', pulse_percentiles(pi, [2,1,3]) ./ 1000)
-    fprintf('Total Charge delivered: %0.1f\n', total_charge(pi))
-    fprintf('Charge per session: %0.1f (%0.1f - %0.1f)\n', prctile(charge_per_session{pi}, [50, 25, 75]))
-    fprintf('Charge per electrode: %0.2f (%0.2f - %0.2f)\n', charge_percentiles(pi, [2,1,3]))
+    summary_table{1, pi} = {sprintf('%d', sum(pulse_count_per_session{pi} > 0))};
+    summary_table{2, pi} = {sprintf('%0.1f', total_pulse_count(pi) / 1e6)};
+    summary_table{3, pi} = {sprintf('%0.1f (%0.1f - %0.1f)', prctile(pulse_count_per_session{pi}, [50, 25, 75]) ./ 1e3)};
+    summary_table{4, pi} = {sprintf('%0.1f (%0.1f - %0.1f)', pulse_percentiles(pi, [2,1,3]) ./ 1e3)};
+    summary_table{5, pi} = {sprintf('%0.1f', total_charge(pi))};
+    summary_table{6, pi} = {sprintf('%0.1f (%0.1f - %0.1f)', prctile(charge_per_session{pi}, [50, 25, 75]))};
+    summary_table{7, pi} = {sprintf('%0.2f (%0.2f - %0.2f)', charge_percentiles(pi, [2,1,3]))};
     cpp = (total_charge_per_electrode(pi,:) ./ total_pulse_per_electrode(pi,:));
-    fprintf('Charge per phase: %0.2f (%0.2f - %0.2f)\n', prctile(cpp, [50, 25, 75]) .* conversion_factor)
+    summary_table{8, pi} = {sprintf('%0.2f (%0.2f - %0.2f)', prctile(cpp, [50, 25, 75]) .* conversion_factor)};
 end
 
 fprintf('\nTotal pulses across participants: %d\n', sum(total_pulse_count))
