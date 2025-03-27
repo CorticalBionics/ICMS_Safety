@@ -1,4 +1,5 @@
 load(fullfile(DataPath, 'DetectionData.mat'))
+load(fullfile(DataPath, '..', 'BCI_HistoricalSurvey', 'ProcessedData', 'SurveyDataAll'))
 
 subjects = {'BCI02', 'BCI03', 'CRS02b', 'CRS07', 'CRS08'};
 subjects_alt = {'C1', 'C2', 'P2', 'P3', 'P4'};
@@ -164,3 +165,49 @@ AddFigureLabels(gcf, [.05 -.015])
 
 return
 
+%% Enabled/disabled survey
+% All pixels included in the palmar mask used, just don't want to add the dependencies to calculate this
+total_palm_pixels = 410624;
+
+s = 2;
+
+% Disabled electrodes
+y = disabled_electrodes{s};
+% Fill missing values if a threshold was missed
+y = fillmissing(y, "linear", 2, "MaxGap", 3);
+y(isnan(y)) = 0;
+% Remove trailing 0s
+term_idx = find(~all(y == 0, 1), 1, 'last');
+
+prop_hand = zeros(term_idx, 1);
+for t = 1:term_idx
+    enabled_idx = logical(y(:,t));
+    idx_all = cat(1, SurveyData{s}(1, enabled_idx).PFM_TIdx);
+    nidx = unique(idx_all);
+    prop_hand(t) = length(nidx) / total_palm_pixels;
+end
+
+clf; hold on
+
+plot(dx(1:term_idx), mean(y(:,1:term_idx), 1, 'omitmissing'), 'Color', SubjectColors(subjects_alt{s}), ...
+    'LineWidth', 2)
+
+ylabel('Functional Electrodes')
+
+yyaxis("right")
+plot(dx(1:term_idx), prop_hand, 'Color', [.6 .6 .6], ...
+    'LineWidth', 2, 'LineStyle', '--');
+h = gca();
+h.YAxis(2).Color = [.6 .6 .6];
+ylabel('Coverage')
+
+
+%% Plot all
+s = 2;
+clf;
+map = zeros(1200, 1050);
+for e = 1:64
+    map(SurveyData{s}(e).PFM_TIdx) = map(SurveyData{s}(e).PFM_TIdx) + 1;
+end
+
+imagesc(map)
