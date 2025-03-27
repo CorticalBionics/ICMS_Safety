@@ -1,4 +1,4 @@
-addpath(genpath('C:\git\climber\src\VoltageMonitor\utilities'))
+addpath(genpath(fullfile(getenv('STIMULATION_MODULES'), 'legacy\VoltageMonitor\utilities')))
 %%% Export Voltage Monitor Data
 tld = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_data";
 

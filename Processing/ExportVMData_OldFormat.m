@@ -2,9 +2,13 @@ addpath(genpath('C:\git\climber\src\VoltageMonitor\utilities'))
 
 %ONLY FOR CRS02B CURRENTLY 
 
+sess_type = 'MPL_Experiments';
+
 %%% Folder Paths 
-baseDir = 'P:\data_raw\human\crs_array\CRS02b\OpenLoopStim'; 
-exportDir = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_data_oldFormat2";
+baseDir = 'P:\data_raw\human\crs_array\CRS02b'; 
+baseDir = fullfile(baseDir, sess_type);
+exportDir = 'P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_data_oldMotor';
+
 
 %Get Folders in OpenLoopStim 
 folders = dir(baseDir);
@@ -34,8 +38,13 @@ for i = 1:length(folders)
     %Get session data from first DAQ file to check if file exists 
     firstFileName = daqFiles(1).name;
     trial_parts = split(firstFileName, '.');
-    sessionDate = extractAfter(trial_parts{5}, 'Rep0000');
-    sessionDate = extractBefore(sessionDate, '_');
+    if strcmp(sess_type, 'MPL_Experiments')
+        sessionDate = trial_parts{7};
+        sessionDate = extractBefore(sessionDate, '_');
+    else
+        sessionDate = extractAfter(trial_parts{5}, 'Rep0000'); %#ok<UNRCH>
+        sessionDate = extractBefore(sessionDate, '_');
+    end
 
     if isempty(sessionDate) %Fix for if rep is greater than 9
         sessionDate = extractAfter(trial_parts{5}, 'Rep000');
@@ -47,7 +56,7 @@ for i = 1:length(folders)
 
     %Save filename
     sessionDateFormatted = datestr(datenum(sessionDate, 'dd-mmm-yyyy'), 'mm_dd_yyyy'); %#ok<*DATNM,*DATST>
-    saveFileName = sprintf('CRS02b%s_session_%s.mat', sessionType, sessionDateFormatted);
+    saveFileName = sprintf('CRS02b%s_session_%s_motor.mat', sessionType, sessionDateFormatted);
     saveFilePath = fullfile(exportDir, saveFileName);
 
     % % If file already exists, skip this session
@@ -126,7 +135,7 @@ for i = 1:length(folders)
         %Create struct 
         trialStruct = struct( ...
             'SubjectID', 'CRS02b', ...
-            'SessionType', 'OpenLoopStim',...
+            'SessionType', sess_type,... %CHANGE THIS
             'SessionLocation', sessionType, ...
             'SessionNum', sessionNum,...
             'SessionDate', sessionDate, ...
