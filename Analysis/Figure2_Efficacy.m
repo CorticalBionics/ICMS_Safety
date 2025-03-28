@@ -6,6 +6,12 @@ subjects_alt = {'C1', 'C2', 'P2', 'P3', 'P4'};
 num_subjects = length(subjects_alt);
 num_channels = 64;
 
+% Thick palm
+[~, palmar_template, ~, ~] = GetHandMasks();
+palm_thick = mean(palmar_template,3);
+palm_thick = bwmorph(~palm_thick, 'thicken', 3);
+palm_thick = uint8(repmat(~palm_thick,[1,1,3])) .* 255;
+
 %% Summary statistics
 for s = 1:num_subjects
     % Count total detection threshold measurements
@@ -72,6 +78,7 @@ for s = 1:num_subjects
     % Fill missing values if a threshold was missed
     enabled_channels = fillmissing(enabled_channels, "linear", 2, "MaxGap", 3);
     enabled_channels(isnan(enabled_channels)) = 0;
+    enabled_channels = enabled_channels == 1;
     disabled_electrodes{s} = enabled_channels;
     % Remove trailing 0s
     term_idx(s) = find(~all(enabled_channels == 0, 1), 1, 'last');
@@ -166,24 +173,52 @@ axes('Position', [ax_xs(1), ax_ys(1), ax_w, ax_h]); hold on
     for s = 1:num_subjects
         prop_hand = zeros(term_idx(s), 1);
         for t = 1:term_idx(s)
-            enabled_idx = logical(disabled_electrodes{s}(:,t));
+            enabled_idx = disabled_electrodes{s}(:,t) == 1;
             idx_all = cat(1, SurveyData{s}(1, enabled_idx).PFM_TIdx);
             nidx = unique(idx_all);
             prop_hand(t) = length(nidx) / total_palm_pixels;
         end
+        prop_hand = prop_hand ./ max(prop_hand);
         plot(dx(1:term_idx(s)), prop_hand, 'Color', SubjectColors(subjects_alt{s}), ...
         'LineWidth', 2);
     end
 
-    ylabel('Coverage')
+    ylabel('Relative Coverage')
     xlabel('Days From Implant')
 
 % Coverage hand maps
-axes('Position', [ax_xs(2), ax_ys(1), ax_w*1.5, ax_h]); hold on
+% P2 Timepoint 1
+    p = [0.325, .275, 0.15, ax_h / 2];
+    s = 3; t = 1;
+    mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
+    title('Year 1')
 
-AddFigureLabels(gcf, [.05 -.015])
+% P2 Timepoint 2
+    p = [0.465, .27, 0.15, ax_h / 2];
+    s = 3; t = 7;
+    mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
+    title('Year 5')
 
-% export_figure3x(FigurePath, 'Fig2_Efficacy')
+% P2 Timepoint 3
+    p = [0.605, .27, 0.15, ax_h / 2];
+    s = 3; t = 15;
+    mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
+    title('Year 10')
+
+% C1 Timepoint 1
+    p = [0.325, .07, 0.15, ax_h / 2];
+    s = 1; t = 1;
+    mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
+
+% C1 Timepoint 2
+    p = [0.465, .07, 0.15, ax_h / 2];
+    s = 1; t = 5;
+    mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
+
+
+% AddFigureLabels(gcf, [.05 -.015])
+
+export_figure3x(FigurePath, 'Fig2_Efficacy')
 shg
 return
 
@@ -233,3 +268,25 @@ for e = 1:64
 end
 
 imagesc(map)
+
+%% Functions
+function mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
+    palm_ax = axes('Position', p); hold on
+    imshow(palm_thick)
+
+    overlay_ax = axes('Position', gca().Position);
+    overlay = zeros(size(palm_thick, [1, 2]));
+    for e = 1:64
+        if disabled_electrodes{s}(e,t) == 1
+            % overlay(SurveyData{s}(e).PFM_TIdx) = 0.5;
+            overlay(SurveyData{s}(e).PFM_TIdx) = overlay(SurveyData{s}(e).PFM_TIdx) + 0.1;
+        end
+    end
+    imagesc(overlay, 'AlphaData',  overlay)
+    colormap(overlay_ax, ColorGradient(SubjectColors(subjects{s}), SubjectColors(subjects{s})))
+
+    xl = [0 1050]; yl = [0 750];
+
+    set(overlay_ax, 'DataAspectRatio', [1 1 1], 'Color', 'none', 'XColor', 'none', 'YColor', 'none', 'XLim', xl, 'YLim', yl)
+    set(palm_ax, 'DataAspectRatio', [1 1 1], 'XColor', 'k', 'YColor', 'k', 'YDir', 'reverse', 'XLim', xl, 'YLim', yl)
+end
