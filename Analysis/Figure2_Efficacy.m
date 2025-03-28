@@ -35,6 +35,7 @@ max_days = ceil(max(subj_max_days)/ dw) * dw; % Max days
 de = 0 : dw : max_days; % Day edges
 dx = de(1:end-1) + (dw/2); % Day center
 t_max = 60; % Threshold over which to assume disabled
+term_idx = zeros(length(subjects), 1);
 
 [discretized_thresholds, disabled_electrodes] = deal(cell(length(subjects_alt), 1));
 for s = 1:num_subjects
@@ -67,7 +68,13 @@ for s = 1:num_subjects
             end
         end
     end
+    
+    % Fill missing values if a threshold was missed
+    enabled_channels = fillmissing(enabled_channels, "linear", 2, "MaxGap", 3);
+    enabled_channels(isnan(enabled_channels)) = 0;
     disabled_electrodes{s} = enabled_channels;
+    % Remove trailing 0s
+    term_idx(s) = find(~all(enabled_channels == 0, 1), 1, 'last');
 
     % Vectorize
     d = cat(2, d{:});
@@ -93,7 +100,7 @@ end
 SetFont('Arial', 9)
 
 clf; 
-set(gcf, 'Units', 'Inches', 'Position', [20 1 6.4 4])
+set(gcf, 'Units', 'Inches', 'Position', [30 1 6.4 4])
 [ax_w, ax_xs] = GetAxisCoords(3, .125, .05); ax_xs = ax_xs + .025;
 [ax_h, ax_ys] = GetAxisCoords(2, .1, .1); ax_ys(2) = ax_ys(2) + .05;
 
@@ -144,59 +151,74 @@ axes('Position', [ax_xs(2), ax_ys(2), ax_w, ax_h]); hold on
     ylabel(sprintf('%sDT (%sA/day)', GetUnicodeChar('Delta'), GetUnicodeChar('mu')))
 
 
-% Disabled electrodes?
+% Functional electrodes
 axes('Position', [ax_xs(3), ax_ys(2), ax_w, ax_h]); hold on
     for s = 1:num_subjects
-        y = disabled_electrodes{s};
-        % Fill missing values if a threshold was missed
-        y = fillmissing(y, "linear", 2, "MaxGap", 3);
-        y(isnan(y)) = 0;
-        % Remove trailing 0s
-        term_idx = find(~all(y == 0, 1), 1, 'last');
-
-        plot(dx(1:term_idx), mean(y(:,1:term_idx), 1, 'omitmissing'), 'Color', SubjectColors(subjects_alt{s}), ...
-            'LineWidth', 2)
+        plot(dx(1:term_idx(s)), mean(disabled_electrodes{s}(:,1:term_idx(s)), 1, 'omitmissing'), ...
+            'Color', SubjectColors(subjects_alt{s}), 'LineWidth', 2)
     end
-    ylabel('p(Enabled Electrodes)')
+    ylabel('p(Functional Electrodes)')
     xlabel('Days From Implant')
 
-AddFigureLabels(gcf, [.05 -.015])
-% export_figure3x(FigurePath, 'Fig2_Efficacy')
 
+% Coverage line plots
+axes('Position', [ax_xs(1), ax_ys(1), ax_w, ax_h]); hold on
+    for s = 1:num_subjects
+        prop_hand = zeros(term_idx(s), 1);
+        for t = 1:term_idx(s)
+            enabled_idx = logical(disabled_electrodes{s}(:,t));
+            idx_all = cat(1, SurveyData{s}(1, enabled_idx).PFM_TIdx);
+            nidx = unique(idx_all);
+            prop_hand(t) = length(nidx) / total_palm_pixels;
+        end
+        plot(dx(1:term_idx(s)), prop_hand, 'Color', SubjectColors(subjects_alt{s}), ...
+        'LineWidth', 2);
+    end
+
+    ylabel('Coverage')
+    xlabel('Days From Implant')
+
+% Coverage hand maps
+axes('Position', [ax_xs(2), ax_ys(1), ax_w*1.5, ax_h]); hold on
+
+AddFigureLabels(gcf, [.05 -.015])
+
+% export_figure3x(FigurePath, 'Fig2_Efficacy')
+shg
 return
 
 %% Enabled/disabled survey
 % All pixels included in the palmar mask used, just don't want to add the dependencies to calculate this
 total_palm_pixels = 410624;
 
-s = 2;
+clf; hold on
+for s = 1:5
+    % Disabled electrodes
+    y = disabled_electrodes{s};
+    % Fill missing values if a threshold was missed
+    y = fillmissing(y, "linear", 2, "MaxGap", 3);
+    y(isnan(y)) = 0;
+    % Remove trailing 0s
+    term_idx = find(~all(y == 0, 1), 1, 'last');
+    
+    prop_hand = zeros(term_idx, 1);
+    for t = 1:term_idx
+        enabled_idx = logical(y(:,t));
+        idx_all = cat(1, SurveyData{s}(1, enabled_idx).PFM_TIdx);
+        nidx = unique(idx_all);
+        prop_hand(t) = length(nidx) / total_palm_pixels;
+    end
+    
+    plot(dx(1:term_idx), mean(y(:,1:term_idx), 1, 'omitmissing'), 'Color', SubjectColors(subjects_alt{s}), ...
+        'LineWidth', 2)
 
-% Disabled electrodes
-y = disabled_electrodes{s};
-% Fill missing values if a threshold was missed
-y = fillmissing(y, "linear", 2, "MaxGap", 3);
-y(isnan(y)) = 0;
-% Remove trailing 0s
-term_idx = find(~all(y == 0, 1), 1, 'last');
-
-prop_hand = zeros(term_idx, 1);
-for t = 1:term_idx
-    enabled_idx = logical(y(:,t));
-    idx_all = cat(1, SurveyData{s}(1, enabled_idx).PFM_TIdx);
-    nidx = unique(idx_all);
-    prop_hand(t) = length(nidx) / total_palm_pixels;
+    ylabel('Functional Electrodes')
+    
+    yyaxis("right")
+    plot(dx(1:term_idx), prop_hand, 'Color', SubjectColors(subjects_alt{s}), ...
+        'LineWidth', 2, 'LineStyle', '--');
 end
 
-clf; hold on
-
-plot(dx(1:term_idx), mean(y(:,1:term_idx), 1, 'omitmissing'), 'Color', SubjectColors(subjects_alt{s}), ...
-    'LineWidth', 2)
-
-ylabel('Functional Electrodes')
-
-yyaxis("right")
-plot(dx(1:term_idx), prop_hand, 'Color', [.6 .6 .6], ...
-    'LineWidth', 2, 'LineStyle', '--');
 h = gca();
 h.YAxis(2).Color = [.6 .6 .6];
 ylabel('Coverage')
