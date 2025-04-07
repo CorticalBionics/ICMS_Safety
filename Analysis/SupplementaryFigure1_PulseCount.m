@@ -44,7 +44,7 @@ for pi = 1:num_part
     
     % Summary stats
     summary_table{1, pi} = {sprintf('%d', sum(pulse_count_per_session{pi} > 0))};
-    summary_table{2, pi} = {sprintf('%0.1f', sum(all_duration) / 60 / 60)};
+    summary_table{2, pi} = {sprintf('%0.1f', sum(all_duration) / 60 / 60)}; % Convert seconds -> hours
     summary_table{3, pi} = {sprintf('%0.1f (%0.1f - %0.1f)', prctile(all_duration, [50, 25, 75]) ./ 60)};
     summary_table{4, pi} = {sprintf('%0.1f', total_pulse_count(pi) / 1e6)};
     summary_table{5, pi} = {sprintf('%0.1f (%0.1f - %0.1f)', prctile(pulse_count_per_session{pi}, [50, 25, 75]) ./ 1e3)};
