@@ -182,4 +182,4 @@ AddFigureLabels(all_ax([7:-1:1]), [0.05, 0.025], 66)
 
 shg
 
-% export_figure3x(FigurePath, 'PulseCounts')
+export_figure3x(FigurePath, 'SuppFig1_PulseCounts')
