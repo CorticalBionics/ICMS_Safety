@@ -13,7 +13,7 @@ for f = 1:length(flist)
 
     % Try to find mat file and get date
     expected_fname = flist(f).name;
-    if isfile(fullfile(output_path, expected_fname))
+    if isfile(fullfile(output_path, expected_fname)) & ~override
         continue
     elseif isfile(fullfile(data_path, expected_fname))
         fsplit = strsplit(flist(f).name, '_');
