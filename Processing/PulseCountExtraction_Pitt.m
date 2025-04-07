@@ -2,9 +2,10 @@
 num_electrodes = 64;
 data_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_data_combined";
 output_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_out2";
-temp = table('Size', [1, 4], ...
-    'VariableNames', {'Subject', 'Date', 'PulseCount', 'CurrentCount'}, ...
-    'VariableTypes', ["string", "datetime", "cell", "cell"]);
+temp = table('Size', [1, 8], ...
+    'VariableNames', {'Subject', 'Date', 'PulseCount', 'CurrentCount', 'Duration', 'NumSingleElec', 'NumMultiElec', 'Waveforms'}, ...
+    'VariableTypes', ["string", "datetime", "cell", "cell", "double", "double", "double", "cell"]);
+override = true;
 flist = dir(fullfile(data_path, '*.mat'));
 msg = '';
 for f = 1:length(flist)
@@ -25,6 +26,9 @@ for f = 1:length(flist)
 
     % create vector for number of pulses and total amplitude
     [num_pulses, total_current] = deal(zeros(num_electrodes, 1));
+    total_duration = zeros(length(VMData), 1);
+    ch_waveforms = cell(num_electrodes, 1);
+    
     % Running count
     for i = 1:length(VMData)
         for c = 1:length(VMData(i).Channels)
@@ -36,28 +40,22 @@ for f = 1:length(flist)
             num_pulses(c_idx) = num_pulses(c_idx) + sum(VMData(i).Amplitudes{c} > 0);
             total_current(c_idx) = total_current(c_idx) + sum(VMData(i).Amplitudes{c});
         end
+        
+        timestamps = cat(1, VMData(i).Timestamps{:});
+        total_duration(i) = max(timestamps) - min(timestamps);
     end
 
     % Store data in table
-    fs = strsplit(expected_fname, '_');
     data = temp;
-    data{1, "Subject"} = fs(1);
+    data{1, "Subject"} = subject_ids(s);
     data{1, "Date"} = dn;
     data{1, "PulseCount"} = {num_pulses};
     data{1, "CurrentCount"} = {total_current};
+    data{1, "Duration"} = sum(total_duration);
+    data{1, "NumSingleElec"} = sum(cellfun(@length, {VMData.Channels}) == 1);
+    data{1, "NumMultiElec"} = sum(cellfun(@length, {VMData.Channels}) > 1);
+    data{1, "Waveforms"} = {ch_waveforms};
     
     % Export
     save(fullfile(output_path, expected_fname), "data")
 end
-
-%% Combine data
-flist = dir(fullfile(output_path, '*.mat'));
-data = cell(length(flist), 1);
-
-for f = 1:length(flist)
-    temp = load(fullfile(output_path, flist(f).name));
-    data{f} = temp.data;
-end
-data = cat(1, data{:});
-
-save(fullfile(output_path, 'VMData_All'), "data")

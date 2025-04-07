@@ -2,22 +2,22 @@
 load(fullfile(DataPath, 'VMData_All.mat'))
 u_part = unique(data.Subject);
 u_part_alt = {'C1', 'C2', 'P2', 'P3', 'P4'};
-num_part = length(u_part);
+num_part = 2;%length(u_part);
 
 conversion_factor = 1e6; % Nano to millicoulomb
 
 %% Summary statistics
-[total_pulse_count, total_charge] = deal(zeros(size(u_part)));
+[total_pulse_count, total_charge, total_duration] = deal(zeros(size(u_part)));
 [pulse_count_per_session, charge_per_session] = deal(cell(size(u_part)));
 [total_pulse_per_electrode, total_charge_per_electrode] = deal(zeros(num_part, 64));
 [pulse_percentiles, charge_percentiles] = deal(zeros(num_part, 3));
 
-vn = {'Stim sessions', 'Total pulses', 'Pulses per session', ...
-      'Pulses per electrode', 'Total charge', 'Charge per session', ...
-      'Charge per electrode', 'Charge per phase'};
-vt = repmat("string", length(u_part_alt), 1);
-summary_table = table('Size', [8, 5], 'RowNames', vn, 'VariableNames', u_part_alt, ...
-                      'VariableTypes', vt);
+vn = {'Stim sessions', 'Total Duration', 'Duration per session', 'Total pulses', 'Pulses per session', ...
+      'Pulses per electrode', 'Total charge', 'Charge per session', 'Charge per electrode', 'Charge per phase', ...
+      '# Single-electrode trials', '# Multi-electrode trials'};
+vt = repmat("string", num_part, 1);
+summary_table = table('Size', [length(vn), num_part], 'RowNames', vn, ...
+    'VariableNames', u_part_alt(1:num_part), 'VariableTypes', vt);
 
 for pi = 1:num_part
     % Filter participant
@@ -28,6 +28,7 @@ for pi = 1:num_part
     total_current = cat(2, data.CurrentCount{s_idx});
     total_current(total_current == 0) = NaN;
     all_charge = total_current .*  0.2 ./ conversion_factor; % Convert to charge
+    all_duration = [data.Duration(s_idx)];
 
     % Pulse number analysis
     total_pulse_count(pi) = sum(total_pulses, 'all', 'omitnan');
@@ -41,16 +42,20 @@ for pi = 1:num_part
     charge_per_session{pi} = sum(all_charge, 1, 'omitnan');
     charge_percentiles(pi, :) = prctile(total_charge_per_electrode(pi,:), [25, 50, 75]);
     
-    % Print summary stats
+    % Summary stats
     summary_table{1, pi} = {sprintf('%d', sum(pulse_count_per_session{pi} > 0))};
-    summary_table{2, pi} = {sprintf('%0.1f', total_pulse_count(pi) / 1e6)};
-    summary_table{3, pi} = {sprintf('%0.1f (%0.1f - %0.1f)', prctile(pulse_count_per_session{pi}, [50, 25, 75]) ./ 1e3)};
-    summary_table{4, pi} = {sprintf('%0.1f (%0.1f - %0.1f)', pulse_percentiles(pi, [2,1,3]) ./ 1e3)};
-    summary_table{5, pi} = {sprintf('%0.1f', total_charge(pi))};
-    summary_table{6, pi} = {sprintf('%0.1f (%0.1f - %0.1f)', prctile(charge_per_session{pi}, [50, 25, 75]))};
-    summary_table{7, pi} = {sprintf('%0.2f (%0.2f - %0.2f)', charge_percentiles(pi, [2,1,3]))};
+    summary_table{2, pi} = {sprintf('%0.1f', sum(all_duration) / 60 / 60)};
+    summary_table{3, pi} = {sprintf('%0.1f (%0.1f - %0.1f)', prctile(all_duration, [50, 25, 75]) ./ 60)};
+    summary_table{4, pi} = {sprintf('%0.1f', total_pulse_count(pi) / 1e6)};
+    summary_table{5, pi} = {sprintf('%0.1f (%0.1f - %0.1f)', prctile(pulse_count_per_session{pi}, [50, 25, 75]) ./ 1e3)};
+    summary_table{6, pi} = {sprintf('%0.1f (%0.1f - %0.1f)', pulse_percentiles(pi, [2,1,3]) ./ 1e3)};
+    summary_table{7, pi} = {sprintf('%0.1f', total_charge(pi))};
+    summary_table{8, pi} = {sprintf('%0.1f (%0.1f - %0.1f)', prctile(charge_per_session{pi}, [50, 25, 75]))};
+    summary_table{9, pi} = {sprintf('%0.2f (%0.2f - %0.2f)', charge_percentiles(pi, [2,1,3]))};
     cpp = (total_charge_per_electrode(pi,:) ./ total_pulse_per_electrode(pi,:));
-    summary_table{8, pi} = {sprintf('%0.2f (%0.2f - %0.2f)', prctile(cpp, [50, 25, 75]) .* conversion_factor)};
+    summary_table{10, pi} = {sprintf('%0.2f (%0.2f - %0.2f)', prctile(cpp, [50, 25, 75]) .* conversion_factor)};
+    summary_table{11, pi} = sum([data.NumSingleElec(s_idx)]);
+    summary_table{12, pi} = sum([data.NumMultiElec(s_idx)]);
 end
 
 fprintf('\nTotal pulses across participants: %d\n', sum(total_pulse_count))
