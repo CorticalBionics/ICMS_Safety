@@ -2,7 +2,7 @@
 load(fullfile(DataPath, 'VMData_All.mat'))
 u_part = unique(data.Subject);
 u_part_alt = {'C1', 'C2', 'P2', 'P3', 'P4'};
-num_part = 2;%length(u_part);
+num_part = length(u_part);
 
 conversion_factor = 1e6; % Nano to millicoulomb
 
@@ -14,7 +14,7 @@ conversion_factor = 1e6; % Nano to millicoulomb
 
 vn = {'Stim sessions', 'Total Duration', 'Duration per session', 'Total pulses', 'Pulses per session', ...
       'Pulses per electrode', 'Total charge', 'Charge per session', 'Charge per electrode', 'Charge per phase', ...
-      '# Single-electrode trials', '# Multi-electrode trials'};
+      '# Trials', '# Single-electrode trials', '# Multi-electrode trials'};
 vt = repmat("string", num_part, 1);
 summary_table = table('Size', [length(vn), num_part], 'RowNames', vn, ...
     'VariableNames', u_part_alt(1:num_part), 'VariableTypes', vt);
@@ -51,11 +51,15 @@ for pi = 1:num_part
     summary_table{6, pi} = {sprintf('%0.1f (%0.1f - %0.1f)', pulse_percentiles(pi, [2,1,3]) ./ 1e3)};
     summary_table{7, pi} = {sprintf('%0.1f', total_charge(pi))};
     summary_table{8, pi} = {sprintf('%0.1f (%0.1f - %0.1f)', prctile(charge_per_session{pi}, [50, 25, 75]))};
-    summary_table{9, pi} = {sprintf('%0.2f (%0.2f - %0.2f)', charge_percentiles(pi, [2,1,3]))};
+    summary_table{9, pi} = {sprintf('%0.2f (%0.1f - %0.1f)', charge_percentiles(pi, [2,1,3]))};
     cpp = (total_charge_per_electrode(pi,:) ./ total_pulse_per_electrode(pi,:));
-    summary_table{10, pi} = {sprintf('%0.2f (%0.2f - %0.2f)', prctile(cpp, [50, 25, 75]) .* conversion_factor)};
-    summary_table{11, pi} = sum([data.NumSingleElec(s_idx)]);
-    summary_table{12, pi} = sum([data.NumMultiElec(s_idx)]);
+    summary_table{10, pi} = {sprintf('%0.2f (%0.1f - %0.1f)', prctile(cpp, [50, 25, 75]) .* conversion_factor)};
+    nst = sum([data.NumSingleElec(s_idx)]) / 1e3;
+    nmt = sum([data.NumMultiElec(s_idx)]) / 1e3;
+    tt = nst + nmt;
+    summary_table{11, pi} = {sprintf('%0.1f', tt)};
+    summary_table{12, pi} = {sprintf('%0.1f (%0.0f%%)', nst, nst / tt * 100)};
+    summary_table{13, pi} = {sprintf('%0.1f (%0.0f%%)', nmt, nmt / tt * 100)};
 end
 
 fprintf('\nTotal pulses across participants: %d\n', sum(total_pulse_count))
