@@ -6,7 +6,7 @@ subject_ids = {'BCI02', 'BCI03'};
 temp = table('Size', [1, 8], ...
     'VariableNames', {'Subject', 'Date', 'PulseCount', 'CurrentCount', 'Duration', 'NumSingleElec', 'NumMultiElec', 'Waveforms'}, ...
     'VariableTypes', ["string", "datetime", "cell", "cell", "double", "double", "double", "cell"]);
-override = true;
+override = false;
 
 for s = 1:length(subject_ids)
     % Get contents of voltage monitor directory
@@ -51,8 +51,19 @@ for s = 1:length(subject_ids)
                 total_current(c_idx) = total_current(c_idx) + sum(VMData(i).Amplitudes{c});
             end
             
-            timestamps = cat(1, VMData(i).Timestamps{:});
-            total_duration(i) = max(timestamps) - min(timestamps);
+            timestamps = sort(cat(1, VMData(i).Timestamps{:}));
+            if any(diff(timestamps > 0.2)) % Anything below 5 Hz stimulation
+                dt_idx = find(diff(timestamps) > 0.2);
+                dt_idx = [0; dt_idx; length(timestamps)]; % Pad with first and last index
+                td = 0;
+                for j = 1:length(dt_idx) - 1
+                    td = td + (timestamps(dt_idx(j+1)) - timestamps(dt_idx(j)+1)); % +1 so we don't count the gap itself
+                end
+                total_duration(i) = td;
+            else
+                total_duration(i) = timestamps(end) - timestamps(1);
+            end
+            
         end
 
         % Store data in table
