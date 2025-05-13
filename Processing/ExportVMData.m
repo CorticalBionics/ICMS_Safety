@@ -16,7 +16,6 @@ for collection = 1:size(vm_collection_list,1)
 
     % Load the JSON
     fprintf('Loading %s\n', fname)
-
     try
         VMData = VoltageMonitor_JSON2MAT(fullfile(vm_collection_list(collection).folder,...
                                               vm_collection_list(collection).name));

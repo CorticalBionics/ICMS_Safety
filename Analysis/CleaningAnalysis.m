@@ -4,6 +4,7 @@ VMData = data; clearvars data
 u_part = {'BCI02', 'BCI03', 'CRS02', 'CRS07', 'CRS08'};
 subjects = {'C1', 'C2', 'P2', 'P3', 'P4'};
 num_part = length(u_part);
+num_channels = 64;
 
 % Remove data from before 14-Aug-2017 (different monitoring system)
 min_date = datetime(736920, 'ConvertFrom', 'datenum');

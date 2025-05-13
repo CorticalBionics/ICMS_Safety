@@ -1,38 +1,63 @@
 %% Export cleaning data
-subject_ids = {'BCI02', 'BCI03'};
+subject_ids = {'BCI02', 'BCI03', 'CRS02b', 'CRS07', 'CRS08'};
 output_path = fullfile(DataPath, "CleaningData");
 data_path = "T:\SessionData";
 
-
 %Stim Presets
 num_electrodes = 64;
-pulse_hw = 50;
 pulse_dur = 700; % 200 cathodic, 100 inter, 400 anodic
 idx_ratio = 300 / pulse_dur;
 
 % Extraction loop
-msg = '';
 for s = 1:length(subject_ids)
+    msg = subject_ids{s};
+    disp(msg)
     sub_data_path = fullfile(data_path, subject_ids{s}, 'VoltageMonitor');
-    % Get list of VM folders
-    flist = dir(fullfile(sub_data_path, 'VM_*'));
+    
+    % Get list of VM folders/files
+    if startsWith(subject_ids{s}, 'BCI')
+        flist = dir(fullfile(sub_data_path, 'VM_*'));
+    elseif startsWith(subject_ids{s}, 'CRS')
+        flist = dir(sub_data_path);
+    end
+    
+    % Loop through the files
     for f = 1:length(flist)
-    
-        % Try to find mat file and get date
-        expected_fname = sprintf('%s_%s.mat', subject_ids{s}, flist(f).name);
-    
-        if isfile(fullfile(output_path, expected_fname)) % Skip if it already has been done
-            continue
-        elseif isfile(fullfile(sub_data_path, flist(f).name, expected_fname))
-            dn = datetime(flist(f).name(4:end), 'InputFormat', 'uuuu_MM_dd');
-            %Print loading file
-            msg = InlineProgressBar('Loading %d/%d', [f,length(flist)], msg);
-            load(fullfile(sub_data_path, flist(f).name, expected_fname));
-        else
-            warning('No .mat file found in %s:%s\n', subject_ids{s}, flist(f).name)
-            continue
-        end
+        if startsWith(subject_ids{s}, 'BCI')
+            % Try to find mat file and get date
+            expected_fname = sprintf('%s_%s.mat', subject_ids{s}, flist(f).name);
         
+            if isfile(fullfile(output_path, expected_fname)) % Skip if it already has been done
+                continue
+            elseif isfile(fullfile(sub_data_path, flist(f).name, expected_fname))
+                dn = datetime(flist(f).name(4:end), 'InputFormat', 'uuuu_MM_dd');
+                %Print loading file
+                msg = InlineProgressBar('Loading %d/%d', [f,length(flist)], msg);
+                load(fullfile(sub_data_path, flist(f).name, expected_fname));
+            else
+                msg = sprintf('No .mat file found in %s:%s', subject_ids{s}, flist(f).name);
+                disp(msg)
+                continue
+            end
+
+        elseif startsWith(subject_ids{s}, 'CRS')
+            if flist(f).isdir
+                continue
+            end
+            if contains(flist(f).name, 'motor')
+                continue % These don't contain any cleaning
+            else
+                dn = datetime(flist(f).name(end-13:end-4), 'InputFormat', 'MM_dd_uuuu');
+                expected_fname = sprintf('%s_VM_%s.mat', subject_ids{s}, datetime(dn, 'format', 'uuuu_MM_dd'));
+            end
+            % Skip if exists
+            if isfile(fullfile(output_path, expected_fname)) % Skip if it already has been done
+                continue
+            end
+            % Load the already formatted .mat file
+            load(fullfile(sub_data_path, flist(f).name));
+        end
+
         % Create data structure for day
         data = struct('Subject', [], ...
                       'Date', [], ...
@@ -47,22 +72,21 @@ for s = 1:length(subject_ids)
                       'avg_waveform', []);
         ii = 1;
 
-        % Go through each trial
+        % Go through each row of VMData
         for i = 1:length(VMData)
-            
-            % Check if Set was cleaning protocol (same channels length)
-            chan_correct = length(VMData(i).Channels) == 12 || ...
-                           length(VMData(i).Channels) == 11 || ...
-                           sum(ismember(VMData(i).Channels, [3 32 35 64])) > 2;
-            len_correct = length(VMData(i).Amplitudes{1, 1}) == 50;
+            if ~contains(VMData(i).SessionType, 'OpenLoop')
+                continue
+            end
+
+            % len_correct = length(VMData(i).Amplitudes{1, 1}) == 50;
+            amp_correct = all(cat(1, VMData(i).Amplitudes{:}) == 10);
     
-            if ~chan_correct || ~len_correct %Check for cleaning data
+            if ~amp_correct %Check for cleaning data
                 continue
             end
     
             [avg_vmax, avg_vinter, avg_vmin] = deal(NaN(num_electrodes, 1));
-            waveform = cell(num_electrodes, 1);
-            avg_waveform = NaN(num_electrodes,100);
+            [waveform, avg_waveform] = deal(cell(num_electrodes, 1));
     
             % Go through each ch and get waveforms and average
             for ch = 1:length(VMData(i).Channels)
@@ -74,41 +98,58 @@ for s = 1:length(subject_ids)
                 waveforms = VMData(i).Waveforms{ch};
                 
                 % Check that waveforms are all the right length
-                if all(cellfun(@(x) length(x) == 100, waveforms))
-          
-                    % Convert into matrix (100 x 50 waveforms)
-                    waveforms_mat = cell2mat(waveforms');
-                    [v_min, v_max, v_inter] = deal(zeros(size(waveforms_mat, 2), 1));
-                    % CALCULATE PER PULSE, THEN TAKE MEDIAN (each col is wave)
-                    for w = 1:size(waveforms_mat, 2)
-                        wave_temp = waveforms_mat(:,w);
-        
-                        % Calculate intermedite voltage
-                        change_in_wave = abs(diff(wave_temp));
-        
-                        % Get index of v_inter
-                        idx_start = find(change_in_wave(1:pulse_hw/2) < (0.01 * max(abs(wave_temp))), 1, 'last') + 1;
-                        idx_stop = find(change_in_wave(end-pulse_hw:end) > (0.01 * max(abs(wave_temp))), 1, 'last') -1 + pulse_hw;
-                        inter_idx = idx_start + round((idx_stop - idx_start) * idx_ratio);
-        
-                        if ~isempty(inter_idx) % Skip weird waveforms
-                            % Save data for each waveform
-                            v_min(w) = min(wave_temp);
-                            v_max(w) = max(wave_temp);
-                            v_inter(w) = wave_temp(inter_idx);
-                        end
-                    end
-                
-        
-                    % Get averages with median
-                    avg_vmin(ch_idx) = median(v_min);
-                    avg_vmax(ch_idx) = median(v_max);
-                    avg_vinter(ch_idx) = median(v_inter);
-                    waveform{ch_idx} = waveforms_mat;
-                    avg_waveform(ch_idx,:) = median(waveforms_mat, 2);
+                if isnumeric(waveforms) && size(waveforms, 1) == 160
+                    pulse_hw = 80; % Old format
+                elseif iscell(waveforms) && all(cellfun(@(x) length(x) == 100, waveforms))
+                    waveforms = cell2mat(waveforms');
+                    pulse_hw = 50; % New format
+                elseif iscell(waveforms) && all(cellfun(@(x) length(x) == 150, waveforms))
+                    waveforms = cell2mat(waveforms');
+                    pulse_hw = 35; % One off?
                 else
-                   warning('Waveform length is not 100 for file %s, trial %d, channel %d', expected_fname, i, ch);
+                   warning('Error parsing file %s, row %d, channel %d', expected_fname, i, ch);
+                   continue
                 end
+          
+                    
+                [v_min, v_max, v_inter] = deal(zeros(size(waveforms, 2), 1));
+                % CALCULATE PER PULSE, THEN TAKE MEDIAN (each col is wave)
+                for w = 1:size(waveforms, 2)
+                    wave_temp = waveforms(:,w);
+    
+                    % Calculate intermedite voltage
+                    change_in_wave = abs(diff(wave_temp));
+    
+                    % Get index of v_inter
+                    idx_start = find(change_in_wave(1:floor(pulse_hw/2)) < (0.01 * max(abs(wave_temp))), 1, 'last') + 1;
+                    idx_stop = find(change_in_wave(end-pulse_hw:end) > (0.01 * max(abs(wave_temp))), 1, 'last') -1 + pulse_hw;
+                    if isempty(idx_stop) % Backup method
+                        idx_stop = find(change_in_wave(idx_start + pulse_hw:end) > ...
+                            (0.01 * max(abs(wave_temp))), 1, 'last') -1;
+                        idx_stop = idx_stop + idx_start + pulse_hw;
+                    end
+                    inter_idx = idx_start + floor((idx_stop - idx_start) * idx_ratio) - 1;
+    
+                    if ~isempty(inter_idx) % Skip weird waveforms
+                        % Save data for each waveform
+                        v_min(w) = min(wave_temp);
+                        v_max(w) = max(wave_temp);
+                        v_inter(w) = wave_temp(inter_idx);
+                    end
+                end
+
+                if all(isnan(v_inter))
+                    warning('No voltages detected %s, trial %d, channel %d', expected_fname, i, ch);
+                    continue
+                end
+
+    
+                % Get averages with median
+                avg_vmin(ch_idx) = median(v_min);
+                avg_vmax(ch_idx) = median(v_max);
+                avg_vinter(ch_idx) = median(v_inter);
+                waveform{ch_idx} = waveforms;
+                avg_waveform{ch_idx} = median(waveforms, 2);
             end
     
             % Format data
@@ -127,7 +168,7 @@ for s = 1:length(subject_ids)
                 warning('Amplitude was all zeros for %s, session %d, set %d', VMData(i).SubjectID, VMData(i).SessionNum, VMData(i).Set);
                 continue
             else
-                if sum(VMData(i).Amplitudes{1, 1} == 10) == 50
+                if all(VMData(i).Amplitudes{1, 1} == 10)
                     temp.Amp = 10;
                 elseif all(VMData(i).Amplitudes{1, 1} == 20)
                     temp.Amp = 20;
@@ -141,115 +182,82 @@ for s = 1:length(subject_ids)
             end
         end
     
+        % Skip empty data
+        if isempty(data(1).Subject)
+            continue
+        end
         % Export single file for one day of data
         save(fullfile(output_path, expected_fname), "data")
     end
 end
 
 
-%% Combine all sessions
-flist = dir(fullfile(output_path, '*.mat'));
-data = cell(length(flist), 1);
-num_electrodes = 64;
-
-for f = 1:length(flist)
-    temp = load(fullfile(output_path, flist(f).name));
-    if isfield(temp, 'data')
-        data{f} = temp.data;
-    elseif isfield(temp, 'combined_data') % Process the old format dataset
-        temp.data = struct('Subject', [], ...
-                          'Date', [], ...
-                          'Session', [], ...
-                          'Set', [], ...
-                          'channels', [], ...
-                          'vmin', [], ...
-                          'vmax', [], ...
-                          'vinter', [], ...
-                          'waveform', [], ...
-                          'Amp', [], ...
-                          'avg_waveform', []); 
-        ii = 1;
-        % Remove empties
-        all_part = {temp.combined_data.Subject};
-        empty_idx = cellfun(@isempty, all_part);
-        temp.combined_data = temp.combined_data(~empty_idx);
-        % Handle weird char struct
-        all_part = {temp.combined_data.Subject};
-        all_part = cellfun(@string, all_part, 'UniformOutput', false);
-        all_part = cat(2, all_part{:});
-        u_parts = unique(all_part);
-        % Get dates
-        all_dates = [temp.combined_data.Date];
-        amp_idx = [temp.combined_data.Amp] == 10;
-        for p = 1:length(u_parts)
-            p_idx = strcmp(all_part, u_parts{p});
-            u_dates = unique(all_dates(p_idx));
-            for d = 1:length(u_dates)
-                % Add to new structure
-                temp.data(ii).Subject = u_parts{p};
-                temp.data(ii).Date = u_dates(d);
-                temp.data(ii).Amp = 10; % We're only comparing these 
-                % Don't care about session/set/channels here so can leave empty
-
-                % Format VM data
-                idx = find(all_dates == u_dates(d) & p_idx & amp_idx);
-                if isempty(idx)
-                    continue
-                end
-                [temp.data(ii).vmin, temp.data(ii).vmax, temp.data(ii).vinter] = deal(NaN(num_electrodes, 1));
-                temp.data(ii).waveform = cell(num_electrodes, 1);
-                temp.data(ii).avg_waveform = NaN(num_electrodes, size(temp.combined_data(idx(1)).avg_waveform, 2));
-                for i = 1:length(idx)
-                    % Assign to above structures based on channel idx
-                    ch_idx = temp.combined_data(idx(i)).channels;
-                    temp.data(ii).vmin(ch_idx) = temp.combined_data(idx(i)).vmin;
-                    temp.data(ii).vmax(ch_idx) = temp.combined_data(idx(i)).vmax;
-                    temp.data(ii).vinter(ch_idx) = temp.combined_data(idx(i)).vinter;
-                    for c = 1:length(ch_idx)
-                        temp.data(ii).waveform{ch_idx(c), 1} = temp.combined_data(idx(i)).waveform{c};
-                    end
-                    temp.data(ii).avg_waveform(ch_idx, :) = temp.combined_data(idx(i)).avg_waveform;
-                end
-                ii = ii + 1;
-            end
-        end
-        data{f} = temp.data;
-    else
-        error('Unsupported data')
-    end
-end
-data = cat(2, data{:});
-data = data(~cellfun(@isempty, {data.Amp})); % Remove empties
-clearvars -except data
-save(fullfile(DataPath, 'CleaningData_Full.mat'), 'data', '-v7.3')
-
-return
 %% Convert to participant:date format and save
-u_part = unique({data.Subject});
-u_part = unique(cellfun(@(c) c(1:5), u_part, 'UniformOutput', false));
-subj_list = {data.Subject};
-date_list = [data.Date];
-amps = [data.Amp];
+clearvars -except output_path subject_ids
 
+u_part = unique(cellfun(@(c) c(1:5), subject_ids, 'UniformOutput', false));
 cleaning_data = cell(size(u_part));
+flist = dir(fullfile(output_path, '*.mat'));
+flist = {flist.name};
 
 for p = 1:length(u_part)
-    p_idx = contains(subj_list, u_part(p));
-    u_dates = unique([data(p_idx).Date]);
+    % Filter files by participant
+    p_idx = find(contains(flist, u_part(p)));
+    % Load data for each subject
+    temp_data = cell(size(p_idx));
+    for d = 1:length(p_idx)
+        temp = load(fullfile(output_path, flist{p_idx(d)}));
+        if isfield(temp, 'data')
+            if isempty(temp.data(1).Subject)
+                continue
+            end
+            temp_data{d} = temp.data;
+        else
+            error('Unsupported data')
+        end
+    end
+    temp_data = cat(2, temp_data{:});
+
+    % Combine values within day
+    date_list = [temp_data.Date];
+    amp_list = [temp_data.Amp];
+    u_dates = unique(date_list);
     for d = 1:length(u_dates)
         % Struct entry for each day
         cleaning_data{p}(d).date = u_dates(d);
         % Get matching data & only take Amp == 10 data because UC only has that for most days
-        idx = p_idx & date_list == u_dates(d) & amps == 10;
-        temp = data(idx);
+        idx = date_list == u_dates(d) & amp_list == 10;
+        temp = temp_data(idx);
+        % Remove sham stimuli
+        idx = true(size(temp));
+        for i = 1:size(temp, 2)
+            if any(temp(i).channels > 64)
+                idx(i) = false;
+            end
+        end
+        temp = temp(idx);
+
         % Everything is already in 64x1, so just concatenate on 2nd dim and nanmean
         cleaning_data{p}(d).vmin = median(cat(2, temp.vmin), 2, 'omitnan');
         cleaning_data{p}(d).vinter = median(cat(2, temp.vinter), 2, 'omitnan');
         cleaning_data{p}(d).vmax = median(cat(2, temp.vmax), 2, 'omitnan');
         % 3rd dim for waveform
-        cleaning_data{p}(d).wf = median(cat(3, temp.avg_waveform), 3, 'omitnan');
+        try
+            cleaning_data{p}(d).wf = median(cat(3, temp.avg_waveform), 3, 'omitnan');
+        catch
+            wf = cat(2, temp.avg_waveform);
+            jdx = find(cellfun(@(c) ~isempty(c), wf(:)), 1);
+            s = size(wf{jdx});
+            wf2 = cell(64,1);
+            for i = 1:64
+                wf2{i} = cat(2, wf{i,:});
+                if isempty(wf2{i})
+                    wf2{i} = NaN(s);
+                end
+            end
+            cleaning_data{p}(d).wf = cat(2, wf2{:});
+        end
     end
 end
 
 save(fullfile(DataPath, 'CleaningData.mat'), 'cleaning_data', '-v7.3')
-
