@@ -5,12 +5,15 @@ subjects = {'BCI02', 'BCI03', 'CRS02b', 'CRS07', 'CRS08'};
 subjects_alt = {'C1', 'C2', 'P2', 'P3', 'P4'};
 num_subjects = length(subjects_alt);
 num_channels = 64;
+t_max = 80; % Threshold over which to assume disabled
 
 % Thick palm
 [~, palmar_template, ~, ~] = GetHandMasks();
 palm_thick = mean(palmar_template,3);
 palm_thick = bwmorph(~palm_thick, 'thicken', 3);
 palm_thick = uint8(repmat(~palm_thick,[1,1,3])) .* 255;
+% All pixels included in the palmar mask used, just don't want to add the dependencies to calculate this
+total_palm_pixels = 410624;
 
 %% Summary statistics
 for s = 1:num_subjects
@@ -40,7 +43,6 @@ end
 max_days = ceil(max(subj_max_days)/ dw) * dw; % Max days
 de = 0 : dw : max_days; % Day edges
 dx = de(1:end-1) + (dw/2); % Day center
-t_max = 60; % Threshold over which to assume disabled
 term_idx = zeros(length(subjects), 1);
 
 [discretized_thresholds, disabled_electrodes] = deal(cell(length(subjects_alt), 1));
@@ -106,9 +108,11 @@ end
 %% Figure 2
 SetFont('Arial', 9)
 
-clf; 
+clf;
+clearvars ax
+
 set(gcf, 'Units', 'Inches', 'Position', [30 1 6.4 4])
-[ax_w, ax_xs] = GetAxisCoords(3, .125, .05); ax_xs = ax_xs + .025;
+[ax_w, ax_xs] = GetAxisCoords(3, .1, .05); ax_xs = ax_xs + .025;
 [ax_h, ax_ys] = GetAxisCoords(2, .1, .1); ax_ys(2) = ax_ys(2) + .05;
 
 h = 2; w = 3;
@@ -116,21 +120,21 @@ h = 2; w = 3;
 [corr_coeffs, corr_coeffs_p] = deal(NaN(num_subjects, 2));
 
 % Detection thresholds
-axes('Position', [ax_xs(1), ax_ys(2), ax_w, ax_h]); hold on
+ax(1) = axes('Position', [ax_xs(1), ax_ys(2), ax_w, ax_h]); hold on
 % axes('Position', [.1 .2 .35 .7]); hold on    
     for s = 1:num_subjects
-        AlphaLine(dx, discretized_thresholds{s}, SubjectColors(subjects_alt{s}), ...
+        AlphaLine(dx ./ 365, discretized_thresholds{s}, SubjectColors(subjects_alt{s}), ...
             'LineWidth', 2, 'IgnoreNan', 1)
     end
     
     % Format
     fmt = 'linear';
     if strcmpi(fmt, 'log')
-        set(gca, 'XLim', [50 4000], ...
+        set(gca, 'XLim', [0.5 10.5], ...
                  'YLim', [0 100], ...
                  'XScale', 'log')
     elseif strcmpi(fmt, 'linear')
-        set(gca, 'XLim', [0 4000], ...
+        set(gca, 'XLim', [0 10.5], ...
                  'YLim', [0 100], ...
                  'XScale', 'linear')
     end
@@ -139,135 +143,95 @@ axes('Position', [ax_xs(1), ax_ys(2), ax_w, ax_h]); hold on
         'HorizontalAlignment', 'right', 'VerticalAlignment', 'top')
     
     ylabel(sprintf('Detection Threshold (%sA)', GetUnicodeChar('mu')))
-    xlabel('Days From Implant')
+    xlabel('Years from Implant')
 
 
 % Threshold time relationship
-axes('Position', [ax_xs(2), ax_ys(2), ax_w, ax_h]); hold on
+ax(2) = axes('Position', [ax_xs(2), ax_ys(2), ax_w, ax_h]); hold on
     plot([.5 5.5], [0 0], 'Color', [.6 .6 .6], 'LineStyle', '--')
     for s = 1:num_subjects
         y = [DetectionData{s}.ThresholdDateLinReg];
         y = y(1:2:end);
-        Swarm(s, y, SubjectColors(subjects_alt{s}), 'DistributionWidth', .35, 'DS', 'Box', 'SPL', 0)
+        Swarm(s, y .* 365, SubjectColors(subjects_alt{s}), 'DistributionWidth', .35, 'DS', 'Box', 'SPL', 0)
     end
-    set(gca, 'Ylim', [-.1 .1], ...
+    set(gca, 'Ylim', [-30 70], ...
              'XTick', [1:5], ...
              'XTickLabel', ColorText(subjects_alt, SubjectColors(subjects_alt)), ...
              'XLim', [.5 5.5], ...
-             'YTick', [-.1:.1:.2])
-    ylabel(sprintf('%sDT (%sA/day)', GetUnicodeChar('Delta'), GetUnicodeChar('mu')))
+             'YTick', [-30:30:60])
+    ylabel(sprintf('%sDT (%sA/year)', GetUnicodeChar('Delta'), GetUnicodeChar('mu')))
 
 
 % Functional electrodes
-axes('Position', [ax_xs(3), ax_ys(2), ax_w, ax_h]); hold on
+ax(3) = axes('Position', [ax_xs(3), ax_ys(2), ax_w, ax_h]); hold on
     for s = 1:num_subjects
-        plot(dx(1:term_idx(s)), mean(disabled_electrodes{s}(:,1:term_idx(s)), 1, 'omitmissing'), ...
+        plot(dx(1:term_idx(s)) ./ 365, mean(disabled_electrodes{s}(:,1:term_idx(s)), 1, 'omitmissing'), ...
             'Color', SubjectColors(subjects_alt{s}), 'LineWidth', 2)
     end
     ylabel('p(Functional Electrodes)')
-    xlabel('Days From Implant')
-
-
-% Coverage line plots
-axes('Position', [ax_xs(1), ax_ys(1), ax_w, ax_h]); hold on
-    for s = 1:num_subjects
-        prop_hand = zeros(term_idx(s), 1);
-        for t = 1:term_idx(s)
-            enabled_idx = disabled_electrodes{s}(:,t) == 1;
-            idx_all = cat(1, SurveyData{s}(1, enabled_idx).PFM_TIdx);
-            nidx = unique(idx_all);
-            prop_hand(t) = length(nidx) / total_palm_pixels;
-        end
-        prop_hand = prop_hand ./ max(prop_hand);
-        plot(dx(1:term_idx(s)), prop_hand, 'Color', SubjectColors(subjects_alt{s}), ...
-        'LineWidth', 2);
-    end
-
-    ylabel('Relative Coverage')
-    xlabel('Days From Implant')
+    xlabel('Years from Implant')
 
 % Coverage hand maps
 % P2 Timepoint 1
-    p = [0.325, .275, 0.15, ax_h / 2];
+    p = [0.025, .25, 0.15, ax_h / 2];
     s = 3; t = 1;
     mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
     title('Year 1')
 
 % P2 Timepoint 2
-    p = [0.465, .27, 0.15, ax_h / 2];
-    s = 3; t = 7;
+    p = [0.165, .25, 0.15, ax_h / 2];
+    s = 3; t = floor(length(dx) / 2);
     mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
     title('Year 5')
 
 % P2 Timepoint 3
-    p = [0.605, .27, 0.15, ax_h / 2];
-    s = 3; t = 15;
+    p = [0.305, .25, 0.15, ax_h / 2];
+    s = 3; t = length(dx);
     mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
     title('Year 10')
 
 % C1 Timepoint 1
-    p = [0.325, .07, 0.15, ax_h / 2];
+    p = [0.025, .05, 0.15, ax_h / 2];
     s = 1; t = 1;
     mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
 
 % C1 Timepoint 2
-    p = [0.465, .07, 0.15, ax_h / 2];
-    s = 1; t = 5;
+    p = [0.165, .05, 0.15, ax_h / 2];
+    s = 1; t = floor(length(dx) / 2) - 1;
     mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
 
+% Labels 
+AddFigureLabels(ax, [0.05 -0.01])
+char_offset = 67;
+annotation("textbox", [0.025 .45 .05 .05], 'String', char(char_offset+1), ...
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
 
-% AddFigureLabels(gcf, [.05 -.015])
+annotation("textbox", [0.475 .45 .05 .05], 'String', char(char_offset+2), ...
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
 
-export_figure3x(FigurePath, 'Fig2_Efficacy')
+% export_figure3x(FigurePath, 'Fig2_Efficacy')
+
 shg
 return
 
-%% Enabled/disabled survey
-% All pixels included in the palmar mask used, just don't want to add the dependencies to calculate this
-total_palm_pixels = 410624;
 
+%% Supplementary Figure 3
 clf; hold on
-for s = 1:5
-    % Disabled electrodes
-    y = disabled_electrodes{s};
-    % Fill missing values if a threshold was missed
-    y = fillmissing(y, "linear", 2, "MaxGap", 3);
-    y(isnan(y)) = 0;
-    % Remove trailing 0s
-    term_idx = find(~all(y == 0, 1), 1, 'last');
-    
-    prop_hand = zeros(term_idx, 1);
-    for t = 1:term_idx
-        enabled_idx = logical(y(:,t));
+for s = 1:num_subjects
+    prop_hand = zeros(term_idx(s), 1);
+    for t = 1:term_idx(s)
+        enabled_idx = disabled_electrodes{s}(:,t) == 1;
         idx_all = cat(1, SurveyData{s}(1, enabled_idx).PFM_TIdx);
         nidx = unique(idx_all);
         prop_hand(t) = length(nidx) / total_palm_pixels;
     end
-    
-    plot(dx(1:term_idx), mean(y(:,1:term_idx), 1, 'omitmissing'), 'Color', SubjectColors(subjects_alt{s}), ...
-        'LineWidth', 2)
-
-    ylabel('Functional Electrodes')
-    
-    yyaxis("right")
-    plot(dx(1:term_idx), prop_hand, 'Color', SubjectColors(subjects_alt{s}), ...
-        'LineWidth', 2, 'LineStyle', '--');
+    prop_hand = prop_hand ./ max(prop_hand);
+    plot(dx(1:term_idx(s)) ./ 365, prop_hand, 'Color', SubjectColors(subjects_alt{s}), ...
+    'LineWidth', 2);
 end
 
-h = gca();
-h.YAxis(2).Color = [.6 .6 .6];
-ylabel('Coverage')
-
-
-%% Plot all
-s = 2;
-clf;
-map = zeros(1200, 1050);
-for e = 1:64
-    map(SurveyData{s}(e).PFM_TIdx) = map(SurveyData{s}(e).PFM_TIdx) + 1;
-end
-
-imagesc(map)
+ylabel('Relative Coverage')
+xlabel('Years from Implant')
 
 %% Functions
 function mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)

@@ -31,6 +31,7 @@ for s = 1:length(subject_ids)
             load(expected_ffname);
         else
             warning('No .mat file found in %s\n', flist(f).name)
+            msg = '';
             continue
         end
 

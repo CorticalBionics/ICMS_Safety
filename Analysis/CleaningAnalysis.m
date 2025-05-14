@@ -4,13 +4,14 @@ VMData = data; clearvars data
 u_part = {'BCI02', 'BCI03', 'CRS02', 'CRS07', 'CRS08'};
 subjects = {'C1', 'C2', 'P2', 'P3', 'P4'};
 num_part = length(u_part);
+num_channels = 64;
 
 % Remove data from before 14-Aug-2017 (different monitoring system)
-min_date = datetime(736920, 'ConvertFrom', 'datenum');
-for p = 1:num_part
-    idx = [cleaning_data{p}.date] > min_date;
-    cleaning_data{p} = cleaning_data{p}(idx); %#ok<SAGROW>
-end
+% min_date = datetime(736920, 'ConvertFrom', 'datenum');
+% for p = 1:num_part
+%     idx = [cleaning_data{p}.date] > min_date;
+%     cleaning_data{p} = cleaning_data{p}(idx); %#ok<SAGROW>
+% end
 
 %% ANOVA on interphase voltages
 % N-way ANOVA: participant X time (since implant) X electrode
@@ -88,7 +89,7 @@ end
 %% Supplementary Figure 3
 clf;
 h = 3; w = 5;
-yl = [0, .8 ; -1.2, -.8; -2, -1];
+yl = [0, .8 ; -1.2, -.2; -2, -1];
 
 ii = 1;
 for s = 1:3
@@ -109,7 +110,8 @@ for s = 1:3
         y = movmedian(y, 10, 2, 'omitmissing');
         AlphaLine(x, y, SubjectColors(u_part{p}), 'ErrorType', 'Percentile', 'Percentiles', [25, 75])
     end
-    ylim(yl(s,:))
+    set(gca, 'YLim', yl(s,:), ...
+             'XLim', [datetime('2015', 'Format', 'uuuu'), datetime('2025', 'Format', 'uuuu')])
     if s < 3
         set(gca, 'XTickLabel', {})
     end
