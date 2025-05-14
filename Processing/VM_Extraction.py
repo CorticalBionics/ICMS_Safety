@@ -2,7 +2,7 @@
 import os
 import shutil
 tld = r"P:\data_raw\human\crs_array"
-export_path = r"P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_data"
+export_path = r"P:\users\tgh28\Experiments\Longitudinal_ICMS\archive\vm_data"
 bson2json = r"C:\git\climber\src\VoltageMonitor\utilities\bson2json\bson2json.exe"
 subject_list = ['CRS02b', 'CRS07', 'CRS08']
 
@@ -28,11 +28,12 @@ for s in subject_list:
         output_json_fname = os.path.join(export_path, bson_gz_fname[:-8])
         if os.path.exists(output_json_fname):
             continue
-        print(f"converting {bson_gz_fname}")
-        cmd = bson2json + ' --out' + output_json_fname + ' ' + os.path.join(ffpath, bson_gz_fname)
+        print(f"Converting {bson_gz_fname}")
+        cmd = bson2json + ' --out ' + output_json_fname + ' ' + os.path.join(ffpath, bson_gz_fname)
         os.system('cmd /c' + cmd)
-        break
-    break
+        
+        
+    
 
 
 #%% Chicago version
