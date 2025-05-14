@@ -25,7 +25,7 @@ for s in subject_list:
             continue
         bson_gz_fname = bson_gz_fname[0]
         # Convert to json and export
-        output_json_fname = os.path.join(export_path, bson_gz_fname[:-8])
+        output_json_fname = os.path.join(export_path, bson_gz_fname[:-8] + '.json')
         if os.path.exists(output_json_fname):
             continue
         print(f"Converting {bson_gz_fname}")

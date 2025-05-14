@@ -2,7 +2,7 @@
 num_electrodes = 64;
 data_path = cc.load_config.system('backup_path');
 output_path = fullfile(DataPath, "VM_Info");
-subject_ids = {'BCI02', 'BCI03'};
+subject_ids = {'BCI02', 'BCI03', 'CRS02b', 'CRS07', 'CRS08'};
 temp = table('Size', [1, 8], ...
     'VariableNames', {'Subject', 'Date', 'PulseCount', 'CurrentCount', 'Duration', 'NumSingleElec', 'NumMultiElec', 'Waveforms'}, ...
     'VariableTypes', ["string", "datetime", "cell", "cell", "double", "double", "double", "cell"]);
@@ -11,28 +11,48 @@ override = false;
 for s = 1:length(subject_ids)
     % Get contents of voltage monitor directory
     vm_path = fullfile(data_path, subject_ids{s}, 'VoltageMonitor');
-    flist = dir(fullfile(vm_path, 'VM*'));
+    if startsWith(subject_ids{s}, 'BCI')
+        flist = dir(fullfile(vm_path, 'VM*'));
+    elseif startsWith(subject_ids{s}, 'CRS')
+        flist = dir(fullfile(vm_path, '*.mat'));
+    end
+    
     msg = '';
-    for f = 3:length(flist)
-        msg = InlineProgressBar('Loading %d/%d', [f,length(flist)], msg);
-        % Skip anything that isn't a subfolder
-        if ~flist(f).isdir
-            continue
-        end
-
-        % Try to find mat file and get date
-        expected_fname = sprintf('%s_%s.mat', subject_ids{s}, flist(f).name);
-        expected_ffname = fullfile(vm_path, flist(f).name, expected_fname);
-        if isfile(fullfile(output_path, expected_fname)) & ~override
-            continue
-        elseif isfile(expected_ffname)
+    for f = 1:length(flist)
+        msg = InlineProgressBar('Loading %d/%d', [f,length(flist)], msg);        
+        if startsWith(subject_ids{s}, 'BCI')
+            % Skip anything that isn't a subfolder
+            if ~flist(f).isdir
+                continue
+            end
+    
+            % Try to find mat file and get date
+            expected_fname = sprintf('%s_%s.mat', subject_ids{s}, flist(f).name);
+            expected_ffname = fullfile(vm_path, flist(f).name, expected_fname);
+            if isfile(fullfile(output_path, expected_fname)) & ~override
+                continue
+            elseif isfile(expected_ffname)
+                fsplit = strsplit(flist(f).name, '_');
+                dn = datetime([str2double(fsplit{2}), str2double(fsplit{3}), str2double(fsplit{4})]);
+                load(expected_ffname);
+            else
+                warning('No .mat file found in %s\n', flist(f).name)
+                msg = '';
+                continue
+            end
+        elseif startsWith(subject_ids{s}, 'CRS')
+            expected_fname = flist(f).name;
+            if isfile(fullfile(output_path, expected_fname)) & ~override
+                continue
+            end
+            load(fullfile(flist(f).folder, flist(f).name));
+            % Process date
             fsplit = strsplit(flist(f).name, '_');
-            dn = datetime([str2double(fsplit{2}), str2double(fsplit{3}), str2double(fsplit{4})]);
-            load(expected_ffname);
-        else
-            warning('No .mat file found in %s\n', flist(f).name)
-            msg = '';
-            continue
+            if contains(fsplit{end}, 'motor')
+                dn = datetime([fsplit{5}, fsplit{3}, fsplit{4}], 'InputFormat', 'yyyyMMdd');
+            else
+                dn = datetime([fsplit{5}(1:end-4), fsplit{3}, fsplit{4}], 'InputFormat', 'yyyyMMdd');
+            end
         end
 
         % create vector for number of pulses and total amplitude

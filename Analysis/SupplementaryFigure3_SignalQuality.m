@@ -40,7 +40,6 @@ for pi = 1:num_participants
 end
 SQData = cat(1, SQData{:});
 
-
 clearvars data all_charge total_current s_idx pi
 
 %% Analyze SNR/VPP/Cleaning
@@ -112,7 +111,7 @@ for pi = 1:num_participants
 
     %%% Cleaning
     idx = cellfun(@(c) ~isempty(c), {cleaning_data{pi}.vmin});
-    x = datetime(datenum([cleaning_data{pi}(idx).date]), 'ConvertFrom', 'datenum');
+    x = [cleaning_data{pi}(idx).date];
     x = years(x - x(1));
     y = cat(2, [cleaning_data{pi}(idx).vinter]);
     [Cln_r(:,pi), Cln_rp(:,pi)] = corr(x', y', 'Rows', 'pairwise', 'type', correlation_type);
@@ -126,10 +125,6 @@ end
 SNR_rp = HolmBonferroni(SNR_rp);
 Vpp_rp = HolmBonferroni(Vpp_rp);
 Cln_rp = HolmBonferroni(Cln_rp);
-
-%% Correlate SNR/VPP/Cleaning with VMData on sensory arrays
-
-
 
 
 %% Supplementary Figure 3
@@ -169,14 +164,14 @@ for p = 1:num_participants
     axes('Position', [ax_x_val(1), ax_y_val(p), ax_size_x, ax_size_y]); hold on
         % Sensory
         y = median_SNR{p}.sensory;
-        scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .05)
-        r = polyfit(datenum(x(~isnan(y))), y(~isnan(y)), 1);
-        plot(xl, polyval(r, datenum(xl)), 'Color', sensory_color);
+        scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .1)
+        r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
+        plot(xl, polyval(r, xl), 'Color', sensory_color);
         % Motor
         y = median_SNR{p}.motor;
-        scatter(x, y, marker_size, motor_color, 'MarkerEdgeAlpha', .05)
-        r = polyfit(datenum(x(~isnan(y))), y(~isnan(y)), 1);
-        plot(xl, polyval(r, datenum(xl)), 'Color', motor_color);
+        scatter(x, y, marker_size, motor_color, 'MarkerEdgeAlpha', .1)
+        r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
+        plot(xl, polyval(r, xl), 'Color', motor_color);
         
         set(gca, 'XLim', xl, ...
                  'XTick', xt, ...
@@ -198,14 +193,14 @@ for p = 1:num_participants
     axes('Position', [ax_x_val(2), ax_y_val(p), ax_size_x, ax_size_y]); hold on
         % Sensory
         y = median_Vpp{p}.sensory;
-        scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .05)
-        r = polyfit(datenum(x(~isnan(y))), y(~isnan(y)), 1);
-        plot(xl, polyval(r, datenum(xl)), 'Color', sensory_color);
+        scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .1)
+        r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
+        plot(xl, polyval(r, xl), 'Color', sensory_color);
         % Motor
         y = median_Vpp{p}.motor;
-        scatter(x, y, marker_size, motor_color, 'MarkerEdgeAlpha', .05)
-        r = polyfit(datenum(x(~isnan(y))), y(~isnan(y)), 1);
-        plot(xl, polyval(r, datenum(xl)), 'Color', motor_color);
+        scatter(x, y, marker_size, motor_color, 'MarkerEdgeAlpha', .1)
+        r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
+        plot(xl, polyval(r, xl), 'Color', motor_color);
         
         set(gca, 'XLim', xl, ...
                  'XTick', xt, ...
@@ -225,7 +220,7 @@ for p = 1:num_participants
         x = [cleaning_data{p}(idx).date];
         x = years(x - implant_dates(p));
         y = median_vinter{p};
-        scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .05)
+        scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .1)
     
         set(gca, 'XLim', xl, ...
                  'XTick', xt, ...
@@ -294,7 +289,72 @@ axes('Position', [ax_x_val(3), ax_y_val(6), ax_size_x, ax_size_y]); hold on
 
 shg
 
+%% Supplementary Figure 4
+[ax_size_x, ax_x_val] = GetAxisCoords(3, 0.1, 0.1);
+[ax_size_y, ax_y_val] = GetAxisCoords(1, 0.1, 0.125);
+ax_y_val = ax_y_val + 0.075;
+xl = [0 1];
 
+clf;
+set(gcf, 'Units', 'Inches', 'Position', [27, 1, 6.45, 2]);
+SetFont('Arial', 9)
+
+clearvars ax
+for i = 1:3
+    ax(i) = axes('Position', [ax_x_val(i), ax_y_val, ax_size_x, ax_size_y]); hold on
+    set(ax(i), 'XScale', 'linear', 'YScale', 'linear')
+end
+
+
+% Correlate SNR/VPP/Cleaning with VMData on sensory arrays
+[SNR_charge_r, SNR_charge_rp, Vpp_charge_r, Vpp_charge_rp, vinter_charge_r, vinter_charge_rp] = ...
+    deal(NaN(1, num_participants));
+for pi = 1:num_participants
+    x = rescale(total_charge(pi, :)');
+
+    % Get sensory mask
+    sens_idx = contains(SQData(pi).implant_metadata.array_names, 'sensory', 'IgnoreCase', true);
+    sensory_mask = SQData(pi).implant_metadata.chan_indices(sens_idx);
+    sensory_mask = cat(2, sensory_mask{:});
+    
+    % SNR
+    snr_y = SNR_slope(sensory_mask, pi);
+    scatter(x, snr_y, marker_size, SubjectColors(subjects{pi}), 'MarkerEdgeAlpha', .5, 'Parent', ax(1))
+    r = polyfit(x(~isnan(snr_y)), y(~isnan(snr_y)), 1);
+    plot(xl, polyval(r, xl), 'Color', SubjectColors(subjects{pi}), 'Parent', ax(1));
+    [SNR_charge_r(pi), SNR_charge_rp(pi)] = corr(x, snr_y, 'Rows', 'pairwise', 'type', correlation_type);
+
+    % Vpp
+    vpp_y = Vpp_slope(sensory_mask, pi);
+    scatter(x, vpp_y, marker_size, SubjectColors(subjects{pi}), 'MarkerEdgeAlpha', .5, 'Parent', ax(2))
+    r = polyfit(x(~isnan(vpp_y)), y(~isnan(vpp_y)), 1);
+    plot(xl, polyval(r, xl), 'Color', SubjectColors(subjects{pi}), 'Parent', ax(2));
+    [Vpp_charge_r(pi), Vpp_charge_rp(pi)] = corr(x, vpp_y, 'Rows', 'pairwise', 'type', correlation_type);
+
+    %Vinter
+    cln_y = Cln_slope(:, pi);
+    scatter(x, cln_y, marker_size, SubjectColors(subjects{pi}), 'MarkerEdgeAlpha', .5, 'Parent', ax(3))
+    r = polyfit(x(~isnan(cln_y)), y(~isnan(cln_y)), 1);
+    plot(xl, polyval(r, xl), 'Color', SubjectColors(subjects{pi}), 'Parent', ax(3));
+    [vinter_charge_r(pi), vinter_charge_rp(pi)] = corr(x, cln_y, 'Rows', 'pairwise', 'type', correlation_type);
+end
+
+% Holm Bonferroni correction
+SNR_charge_rp = HolmBonferroni(SNR_charge_rp);
+Vpp_charge_rp = HolmBonferroni(Vpp_charge_rp);
+vinter_charge_rp = HolmBonferroni(vinter_charge_rp);
+
+xlabel(ax(2), 'Normalized Charge per Electrode')
+
+ylabel(ax(1), sprintf('%sSNR/year', GetUnicodeChar('Delta')))
+ylabel(ax(2), sprintf('%sVpp (%sV/year)', GetUnicodeChar('Delta'), GetUnicodeChar('mu')))
+ylabel(ax(3), sprintf('%sV_{inter} (%sV/year)', GetUnicodeChar('Delta'), GetUnicodeChar('mu')))
+
+set(ax(1), 'YLim', [-.5 .5], 'XTick', [0 1])
+set(ax(2), 'YLim', [-50 50], 'XTick', [0 1])
+set(ax(3), 'YLim', [-.5 .5], 'XTick', [0 1])
+
+%% Functions
 function slope = nan_regression(x, y)
     slope = NaN;
     nan_idx = isnan(y);
