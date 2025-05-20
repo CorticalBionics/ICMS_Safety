@@ -51,6 +51,7 @@ for s = 1:num_subjects
     % Vectorize
     c = cat(2, c{:});
     d = cat(2, d{:});
+    d = d ./ 365; % Convert to years
     t = round(cat(2, t{:}));
     
     % Sort by color
@@ -76,14 +77,17 @@ for s = 1:num_subjects
         end
     
         % Plot
+
         plot(x_vec, y_vec, 'Color', col, 'LineWidth', 2)
     end
+    xm = ceil(max(d, [], 'omitnan'));
     set(gca, 'YTick', [1,32, 64], ...
              'YLim', [0 64.5], ...
-             'XLim', [0 ceil(max(d, [], 'omitnan')/100)*100])
+             'XLim', [0 xm], ...
+             'XTick', [0:xm])
     title(subjects{s}, 'Color', SubjectColors(subjects{s}))
     if s == 5
-        xlabel('Days post Implant', 'VerticalAlignment', 'top')
+        xlabel('Years post Implant', 'VerticalAlignment', 'top')
     elseif s == 3
         ylabel('Electrode')
     end
@@ -203,5 +207,5 @@ all_ax = flipud(get(gcf(), 'Children'));
 AddFigureLabels(all_ax(1), [0.05, 0.02], 64)
 AddFigureLabels(all_ax(7), [0.05, 0.02], 65)
 AddFigureLabels(all_ax(12), [0.075, 0.02], 66)
-% export_figure3x(FigurePath, 'SuppFig2_Detection')
+export_figure3x(FigurePath, 'SuppFig2_Detection')
 shg
