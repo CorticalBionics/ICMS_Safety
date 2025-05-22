@@ -1,22 +1,22 @@
 function [freq_sensation,nr_tests] = quality_long_term(data_folder, threshold)
 
 % read in the data
-CRS02b = load(fullfile(data_folder,'CRS02b','CRS02b_resp_data.mat'));
-CRS07 = load(fullfile(data_folder,'CRS07','CRS07_resp_data.mat'));
-CRS08 = load(fullfile(data_folder,'CRS08','CRS08_resp_data.mat'));
-BCI02 = load(fullfile(data_folder,'BCI02','BCI02_resp_data.mat'));
-BCI03 = load(fullfile(data_folder,'BCI03','BCI03_resp_data.mat'));
+P2 = load(fullfile(data_folder,'P2_quality.mat'));
+P3 = load(fullfile(data_folder,'P3_quality.mat'));
+P4 = load(fullfile(data_folder,'P4_quality.mat'));
+C1 = load(fullfile(data_folder,'C1_quality.mat'));
+C2 = load(fullfile(data_folder,'C2_quality.mat'));
 
-response_header = CRS02b.response_header;
+response_header = P2.response_header;
 
 % flatten data
-[CRS02b_flat_scores, CRS02b_flat_dates] = prepare_data(CRS02b.resp_data,CRS02b.s_date);
-[CRS07_flat_scores, CRS07_flat_dates] = prepare_data(CRS07.resp_data,CRS07.s_date);
-[CRS08_flat_scores, CRS08_flat_dates] = prepare_data(CRS08.resp_data,CRS08.s_date);
-[BCI02_flat_scores, BCI02_flat_dates] = prepare_data(BCI02.resp_data,BCI02.s_date);
-[BCI03_flat_scores, BCI03_flat_dates] = prepare_data(BCI03.resp_data,BCI03.s_date);
+[P2_flat_scores, P2_flat_dates] = prepare_data(P2.resp_data,P2.s_date);
+[P3_flat_scores, P3_flat_dates] = prepare_data(P3.resp_data,P3.s_date);
+[P4_flat_scores, P4_flat_dates] = prepare_data(P4.resp_data,P4.s_date);
+[C1_flat_scores, C1_flat_dates] = prepare_data(C1.resp_data,C1.s_date);
+[C2_flat_scores, C2_flat_dates] = prepare_data(C2.resp_data,C2.s_date);
 % append data
-all_data = [CRS02b_flat_scores; CRS07_flat_scores; CRS08_flat_scores; BCI02_flat_scores; BCI03_flat_scores];
+all_data = [P2_flat_scores; P3_flat_scores; P4_flat_scores; C1_flat_scores; C2_flat_scores];
 
 % nr tests per electrode
 % sensations detected per electrode
@@ -34,39 +34,39 @@ end
 freq_sensation = sensation_detected./nr_tests*100; % frequency of a perceived sensation at each electrode
 
 % get quality data per year
-dates = CRS02b_flat_dates;
-scores = CRS02b_flat_scores;
+dates = P2_flat_dates;
+scores = P2_flat_scores;
 [first,second,third,fourth,fifth,sixth,seventh,eight,ninth,last] = sort_dates(datetime(dates)); % get 4 equally spaced dates
 [freq1, pain_intensity1] = get_freq_qualities(scores(datetime(dates)<=last,:),freq_sensation); % get frequency of quality across this time range
-dates = CRS07_flat_dates;
-scores = CRS07_flat_scores;
+dates = P3_flat_dates;
+scores = P3_flat_scores;
 [first,second,third,fourth,fifth,sixth,seventh,eight,ninth,last] = sort_dates(datetime(dates)); % get 4 equally spaced dates
 [freq2, pain_intensity2] = get_freq_qualities(scores(datetime(dates)<=last,:),freq_sensation); % get frequency of quality across this time range
-dates = CRS08_flat_dates;
-scores = CRS08_flat_scores;
+dates = P4_flat_dates;
+scores = P4_flat_scores;
 [first,second,third,fourth,fifth,sixth,seventh,eight,ninth,last] = sort_dates(datetime(dates)); % get 4 equally spaced dates
 [freq3, pain_intensity3] = get_freq_qualities(scores(datetime(dates)<=last,:),freq_sensation); % get frequency of quality across this time range
-dates = BCI02_flat_dates;
-scores = BCI02_flat_scores;
+dates = C1_flat_dates;
+scores = C1_flat_scores;
 [first,second,third,fourth,fifth,sixth,seventh,eight,ninth,last] = sort_dates(datetime(dates)); % get 4 equally spaced dates
 [freq4, pain_intensity4] = get_freq_qualities(scores(datetime(dates)<=last,:),freq_sensation); % get frequency of quality across this time range
-dates = BCI03_flat_dates;
-scores = BCI03_flat_scores;
+dates = C2_flat_dates;
+scores = C2_flat_scores;
 [first,second,third,fourth,fifth,sixth,seventh,eight,ninth,last] = sort_dates(datetime(dates)); % get 4 equally spaced dates
 [freq5, pain_intensity5] = get_freq_qualities(scores(datetime(dates)<=last,:),freq_sensation); % get frequency of quality across this time range
 
 % total amount of pain reported
 % average intensity pain (16)
-perc_pain = [sum(CRS02b_flat_scores(:,16)>0)/sum(sum(CRS02b_flat_scores(:,14:end),2)>0) sum(CRS07_flat_scores(:,16)>0)/sum(sum(CRS07_flat_scores(:,14:end),2)>0) ...
-             sum(CRS08_flat_scores(:,16)>0)/sum(sum(CRS08_flat_scores(:,14:end),2)>0) sum(BCI02_flat_scores(:,16)>0)/sum(sum(BCI02_flat_scores(:,14:end),2)>0) ...
-             sum(BCI02_flat_scores(:,16)>0)/sum(sum(BCI02_flat_scores(:,14:end),2)>0)]*100;
+perc_pain = [sum(P2_flat_scores(:,16)>0)/sum(sum(P2_flat_scores(:,14:end),2)>0) sum(P3_flat_scores(:,16)>0)/sum(sum(P3_flat_scores(:,14:end),2)>0) ...
+             sum(P4_flat_scores(:,16)>0)/sum(sum(P4_flat_scores(:,14:end),2)>0) sum(C1_flat_scores(:,16)>0)/sum(sum(C1_flat_scores(:,14:end),2)>0) ...
+             sum(C2_flat_scores(:,16)>0)/sum(sum(C2_flat_scores(:,14:end),2)>0)]*100;
 pain_intensity = [pain_intensity1(freq1(:,1)>threshold)' pain_intensity2(freq2(:,1)>threshold)' pain_intensity3(freq3(:,1)>threshold)' ...
                   pain_intensity4(freq4(:,1)>threshold)' pain_intensity5(freq5(:,1)>threshold)'];
 intensity_group = [ones(1,sum(freq1(:,1)>threshold)) ones(1,sum(freq2(:,1)>threshold))*2 ones(1,sum(freq3(:,1)>threshold))*3 ...
                    ones(1,sum(freq4(:,1)>threshold))*4 ones(1,sum(freq5(:,1)>threshold))*5]; 
 
-pain07 = load(fullfile(data_folder,'CRS07','CRS07_pain.mat'));
-pain08 = load(fullfile(data_folder,'CRS08','CRS08_pain.mat'));
+pain07 = load(fullfile(data_folder,'P3_pain.mat'));
+pain08 = load(fullfile(data_folder,'P4_pain.mat'));
                
 figure;
 subplot(1,3,1)
@@ -101,8 +101,8 @@ ylabel('pain intensity')
 set(gca,'FontSize',15);
 
 % calc naturalness per year
-dates = CRS02b_flat_dates;
-scores = CRS02b_flat_scores;
+dates = P2_flat_dates;
+scores = P2_flat_scores;
 [first,second,third,fourth,fifth,sixth,seventh,eight,ninth,last] = sort_dates(datetime(dates)); % score each year
 [mean_intensity1(:,1)] = calcIntensity(scores(datetime(dates)<first,:),15);
 [mean_intensity1(:,2)] = calcIntensity(scores(datetime(dates)>=first & datetime(dates)<second,:),15);
@@ -115,22 +115,22 @@ scores = CRS02b_flat_scores;
 [mean_intensity1(:,9)] = calcIntensity(scores(datetime(dates)>=eight & datetime(dates)<ninth,:),15);
 [mean_intensity1(:,10)] = calcIntensity(scores(datetime(dates)>=ninth,:),15);
 
-dates = CRS07_flat_dates;
-scores = CRS07_flat_scores;
+dates = P3_flat_dates;
+scores = P3_flat_scores;
 [first,second,third,fourth,fifth,sixth,seventh,eight,ninth,last] = sort_dates(datetime(dates)); % score each year
 [mean_intensity2(:,1)] = calcIntensity(scores(datetime(dates)<first,:),15);
 [mean_intensity2(:,2)] = calcIntensity(scores(datetime(dates)>=first & datetime(dates)<second,:),15);
 [mean_intensity2(:,3)] = calcIntensity(scores(datetime(dates)>=second & datetime(dates)<third,:),15);
 [mean_intensity2(:,4)] = calcIntensity(scores(datetime(dates)>=third,:),15);
 
-dates = CRS08_flat_dates;
-scores = CRS08_flat_scores;
+dates = P4_flat_dates;
+scores = P4_flat_scores;
 [first,second,third,fourth,fifth,sixth,seventh,eight,ninth,last] = sort_dates(datetime(dates)); % score each year
 [mean_intensity3(:,1)] = calcIntensity(scores(datetime(dates)<first,:),15);
 [mean_intensity3(:,2)] = calcIntensity(scores(datetime(dates)>=first,:),15);
 
-dates = BCI02_flat_dates;
-scores = BCI02_flat_scores;
+dates = C1_flat_dates;
+scores = C1_flat_scores;
 [first,second,third,fourth,fifth,sixth,seventh,eight,ninth,last] = sort_dates(datetime(dates)); % score each year
 [mean_intensity4(:,1)] = calcIntensity(scores(datetime(dates)<first,:),15);
 [mean_intensity4(:,2)] = calcIntensity(scores(datetime(dates)>=first & datetime(dates)<second,:),15);
@@ -138,8 +138,8 @@ scores = BCI02_flat_scores;
 [mean_intensity4(:,4)] = calcIntensity(scores(datetime(dates)>=third & datetime(dates)<fourth,:),15);
 [mean_intensity4(:,5)] = calcIntensity(scores(datetime(dates)>=fourth,:),15);
 
-dates = BCI03_flat_dates;
-scores = BCI03_flat_scores;
+dates = C2_flat_dates;
+scores = C2_flat_scores;
 [first,second,third,fourth,fifth,sixth,seventh,eight,ninth,last] = sort_dates(datetime(dates)); % score each year
 [mean_intensity5(:,1)] = calcIntensity(scores(datetime(dates)<first,:),15);
 [mean_intensity5(:,2)] = calcIntensity(scores(datetime(dates)>=first,:),15);
