@@ -1,6 +1,8 @@
 load(fullfile(DataPath, 'DetectionData.mat'))
 load(fullfile(DataPath, 'QualityData.mat'))
 load(fullfile(DataPath, '..', 'BCI_HistoricalSurvey', 'ProcessedData', 'SurveyDataAll'))
+PainData.P3 = load(fullfile(DataPath, 'QualityData', 'P3_pain.mat'));
+PainData.P4 = load(fullfile(DataPath, 'QualityData', 'P4_pain.mat'));
 
 subjects = {'BCI02', 'BCI03', 'CRS02b', 'CRS07', 'CRS08'};
 subjects_alt = {'C1', 'C2', 'P2', 'P3', 'P4'};
@@ -27,7 +29,7 @@ end
 
 %% ANOVA on ddt/day slopes
 [slopes_all, g1, g2] = deal(cell(length(DetectionData), 1));
-for s = 1:length(DetectionData)-1
+for s = 1:length(DetectionData)
     y = [DetectionData{s}.ThresholdDateLinReg];
     slopes_all{s} = y(1:2:end)'; % Alternates between slope and offest
     g1{s} = repelem(s, length(slopes_all{s}), 1);
@@ -85,7 +87,7 @@ for s = 1:num_subjects
     enabled_channels = enabled_channels == 1;
     disabled_electrodes{s} = enabled_channels;
     % Remove trailing 0s
-    term_idx(s) = find(~all(enabled_channels == 0, 1), 1, 'last');
+    term_idx(s) = find(mean(enabled_channels, 1) > 0.1, 1, 'last'); % Haven't tested enough electrodes to know...
 
     % Vectorize
     d = cat(2, d{:});
@@ -112,6 +114,7 @@ for s = 1:num_subjects
 end
 
 %% Analyze quality data
+% Count the number of unique surveys
 unique_surveys = zeros(num_subjects, 1);
 for i = 1:num_subjects
     nu = zeros(num_channels, 1);
@@ -119,6 +122,22 @@ for i = 1:num_subjects
         nu(c) = sum(QualityData(i).Responses.channel == c);
     end
     unique_surveys(i) = mode(nu);
+end
+
+% Discretize and compute naturalness per year
+for i = 1:num_subjects
+    any_resp = any(QualityData(i).Responses{:,3:end} > 0, 2);
+    y = years(QualityData(i).Responses.Date - min(QualityData(i).Responses.Date));
+    y_max = ceil(max(y));
+    nat_mat = NaN(y_max, num_channels);
+    for c = 1:num_channels
+        c_idx = QualityData(i).Responses.channel == c;
+        for j = 1:y_max
+            y_idx = (j-1 < y) & (y < j);
+            nat_mat(j,c) = mean(QualityData(i).Responses.Naturalness(y_idx & c_idx & any_resp), 'omitnan');
+        end
+    end
+    QualityData(i).Naturalness = nat_mat;
 end
 
 %% Figure 2
@@ -155,7 +174,8 @@ ax(1) = axes('Position', [ax_xs(1), ax_ys(2), ax_w, ax_h]); hold on
                  'XScale', 'linear')
     end
     
-    text(4000, 100, ColorText(subjects_alt, SubjectColors(subjects_alt)), ...
+    ct = ColorText(subjects_alt, SubjectColors(subjects_alt));
+    text(10, 100, join(ct, '  '), ...
         'HorizontalAlignment', 'right', 'VerticalAlignment', 'top')
     
     ylabel(sprintf('Detection Threshold (%sA)', GetUnicodeChar('mu')))
@@ -232,6 +252,19 @@ return
 
 
 %% Supplementary Figure 3
+
+xticks = [1:10];
+xticklabels = cell(size(xticks));
+for x = 1:length(xticks)
+    if x == 1
+        xticklabels{x} = num2str(x);
+    elseif x == length(xticks)
+        xticklabels{x} = num2str(x);
+    else
+        xticklabels{x} = '';
+    end
+end
+
 clf; 
 % Relative coverage
 subplot(3,3,1); hold on
@@ -250,6 +283,9 @@ subplot(3,3,1); hold on
     
     ylabel('Relative Coverage')
     xlabel('Years from Implant')
+    set(gca, 'XTick', xticks, ...
+             'XTickLabel', xticklabels, ...
+             'XTickLabelRotation', 0)
 
 % Number of surveys
 subplot(3,3,2); hold on
@@ -259,13 +295,34 @@ subplot(3,3,2); hold on
 
     set(gca, 'XLim', [.5 5.5], ...
              'XTick', [1:5], ...
-             'XTickLabel', ColorText(subjects_alt, SubjectColors(subjects_alt)))
+             'XTickLabel', ColorText(subjects_alt, SubjectColors(subjects_alt)), ...
+             'YLim', [0 70])
     ylabel('# Surveys')
 
-% Pain frequency
+% Naturalness
 subplot(3,3,3); hold on
     for s = 1:num_subjects
-        Swarm(s, mean(QualityData(s).Responses.Pain > 0) * 100 ,...
+        AlphaLine([1:size(QualityData(s).Naturalness, 1)], QualityData(s).Naturalness, ...
+            SubjectColors(subjects_alt{s}), 'LineWidth', 2)
+    end
+
+    set(gca, 'XLim', [0 10], ...
+             'XTick', [1:10], ...
+             'YLim', [0 10])
+    ylabel('Naturalness')
+    xlabel('Years from Implant')
+    set(gca, 'XTick', xticks, ...
+             'XTickLabel', xticklabels, ...
+             'XTickLabelRotation', 0)
+
+% Pain frequency
+subplot(3,3,4); hold on
+    for s = 1:num_subjects
+        % Number of pain reports
+        pain_resp = sum(QualityData(s).Responses.Pain > 0);
+        % Divided by number times any report was given
+        any_resp = sum(sum(QualityData(s).Responses{:,3:end} > 0, 2) > 0);
+        Swarm(s, pain_resp / any_resp * 100 ,...
             'DS', 'Bar', 'SPL', 0, 'Color', SubjectColors(subjects_alt{s}))
     end
 
@@ -276,21 +333,25 @@ subplot(3,3,3); hold on
     ylabel('Pain Reported (%)')
 
 % Pain rating
-subplot(3,3,4); hold on
+subplot(3,3,5); hold on
 
     % Stim related
     % P3
     idx = QualityData(4).Responses.Pain > 0;
-    Swarm(3, mean(QualityData(4).Responses.Pain (idx)),...
-        'DS', 'Bar', 'SPL', 0, 'Color', SubjectColors('P3'))
+    Swarm(1, QualityData(4).Responses.Pain (idx),...
+        'DS', 'Bar', 'Color', SubjectColors('P3'), 'SPL', 0)
+    Swarm(4, PainData.P3.uPain,...
+        'DS', 'Bar', 'Color', SubjectColors('P3'), 'SPL', 0, 'HS', '\', 'HA', 84)
     % P4
     idx = QualityData(5).Responses.Pain > 0;
-    Swarm(4, mean(QualityData(5).Responses.Pain (idx)),...
-        'DS', 'Bar', 'SPL', 0, 'Color', SubjectColors('P4'))
-    % 
-    % set(gca, 'XLim', [.5 5.5], ...
-    %          'XTick', [1:5], ...
-    %          'XTickLabel', ColorText(subjects_alt, SubjectColors(subjects_alt)))
+    Swarm(2, QualityData(5).Responses.Pain (idx),...
+        'DS', 'Bar', 'Color', SubjectColors('P4'), 'SPL', 0)
+    Swarm(5, PainData.P4.uPain,...
+        'DS', 'Bar', 'Color', SubjectColors('P4'), 'SPL', 0, 'HS', '\', 'HA', 84)
+
+    set(gca, 'XLim', [.5 5.5], ...
+             'XTick', [1.5, 4.5], ...
+             'XTickLabel', {'Stim', 'Baseline'})
     ylabel('Pain Rating')
 
 

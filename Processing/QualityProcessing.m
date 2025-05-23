@@ -33,9 +33,13 @@ for f = 1:length(flist)
             channel_data = session_data(idx_channel, :);
             single_data = zeros(1,size(channel_data, 2));
             if numel(idx_channel)>1
-                for r=14:size(channel_data, 2)
-                    if any(channel_data(:,r) > 0)
-                        single_data(1,r) = mean(channel_data(channel_data(:,r) > 0,r));
+                for r=14:size(channel_data,2)
+                    if sum(channel_data(:,r)>0)>1
+                        single_data(1,r) = mean(channel_data(channel_data(:,r)>0,r)); % take average
+                    elseif sum(channel_data(:,r)>0)==1
+                        single_data(1,r) = channel_data(channel_data(:,r)>0,r); % copy over non 0 element
+                    else
+                        single_data(1,r) = 0;
                     end
                 end
                 single_data(1,1:10) = channel_data(1,1:10);
@@ -71,5 +75,7 @@ for f = 1:length(flist)
         QualityData(f).Responses.(resp_header{i}) = flat_scores(:,i);
     end
 end
+
+% Run the permutations to assess stability
 
 save(fullfile(DataPath, 'QualityData'), "QualityData")

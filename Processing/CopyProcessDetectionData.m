@@ -178,7 +178,7 @@ if any(data_added)
             end
             % Only add ones with the 'Method' and 'ResponseTable' fields as these were formatted properly
             if any(strcmp(fieldnames(OLSData), 'Method')) && any(strcmp(fieldnames(OLSData), 'ResponseTable'))
-                RawDetectionData(size(RawDetectionData,1):size(RawDetectionData,1)+size(OLSData,1)-1,1) = OLSData;
+                RawDetectionData = [RawDetectionData; OLSData]; %#ok<AGROW>
             else
                 warning(fullfile(target_folder, subject_session{s,1}, subject_session_data(i).name))
             end
