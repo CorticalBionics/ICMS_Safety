@@ -1,6 +1,6 @@
 function [mean_corr, std_corr, p] = permute_quality_over_time(data_folder,subject,freq_sensation)
 
-data = load(fullfile(data_folder,subject,[subject,'_resp_data.mat']));
+data = load(fullfile(data_folder,[subject,'_quality.mat']));
 
 response_header = data.response_header;
 

@@ -1,4 +1,5 @@
 load(fullfile(DataPath, 'DetectionData.mat'))
+load(fullfile(DataPath, 'QualityData.mat'))
 load(fullfile(DataPath, '..', 'BCI_HistoricalSurvey', 'ProcessedData', 'SurveyDataAll'))
 
 subjects = {'BCI02', 'BCI03', 'CRS02b', 'CRS07', 'CRS08'};
@@ -15,7 +16,7 @@ palm_thick = uint8(repmat(~palm_thick,[1,1,3])) .* 255;
 % All pixels included in the palmar mask used, just don't want to add the dependencies to calculate this
 total_palm_pixels = 410624;
 
-%% Summary statistics
+%% Detection threshold summary statistics
 for s = 1:num_subjects
     % Count total detection threshold measurements
     ndt = cellfun(@length, {DetectionData{s}.Threshold});
@@ -26,15 +27,16 @@ end
 
 %% ANOVA on ddt/day slopes
 [slopes_all, g1, g2] = deal(cell(length(DetectionData), 1));
-for s = 1:length(DetectionData)
+for s = 1:length(DetectionData)-1
     y = [DetectionData{s}.ThresholdDateLinReg];
-    slopes_all{s} = y(1:2:end)';
+    slopes_all{s} = y(1:2:end)'; % Alternates between slope and offest
     g1{s} = repelem(s, length(slopes_all{s}), 1);
+    fprintf('%s mean DT slope = %0.2f\n', subjects_alt{s}, median(slopes_all{s}, 'omitnan') .* 365)
 end
-
+fprintf('Grand mean DT slope = %0.2f\n', mean(cat(1, slopes_all{:}), 'omitnan') * 365)
 anova_tab = anovan(cat(1, slopes_all{:}), cat(1, g1{:}));
 
-%% Analyze
+%% Analyze detection thresholds
 dw = 250; % Bin width in days
 subj_max_days = zeros(size(DetectionData));
 for i = 1:length(DetectionData)
@@ -99,10 +101,24 @@ for s = 1:num_subjects
     % Discretize
     dv = cell(size(dx)); % Thresholds in each bin
     for i = 1:length(dx)
-        dv{i} = t(d > de(i) & d <= de(i+1));
+        idx = d > de(i) & d <= de(i+1);
+        if sum(idx) < 5 % Only add to bin if at least 5 observations
+            continue
+        end
+        dv{i} = t(idx);
         dv{i}(isinf(dv{i})) = NaN;
     end
     discretized_thresholds{s} = dv;
+end
+
+%% Analyze quality data
+unique_surveys = zeros(num_subjects, 1);
+for i = 1:num_subjects
+    nu = zeros(num_channels, 1);
+    for c = 1:num_channels
+        nu(c) = sum(QualityData(i).Responses.channel == c);
+    end
+    unique_surveys(i) = mode(nu);
 end
 
 %% Figure 2
@@ -149,7 +165,7 @@ ax(1) = axes('Position', [ax_xs(1), ax_ys(2), ax_w, ax_h]); hold on
 % Threshold time relationship
 ax(2) = axes('Position', [ax_xs(2), ax_ys(2), ax_w, ax_h]); hold on
     plot([.5 5.5], [0 0], 'Color', [.6 .6 .6], 'LineStyle', '--')
-    for s = 1:num_subjects
+    for s = 1:num_subjects-1
         y = [DetectionData{s}.ThresholdDateLinReg];
         y = y(1:2:end);
         Swarm(s, y .* 365, SubjectColors(subjects_alt{s}), 'DistributionWidth', .35, 'DS', 'Box', 'SPL', 0)
@@ -216,22 +232,70 @@ return
 
 
 %% Supplementary Figure 3
-clf; hold on
-for s = 1:num_subjects
-    prop_hand = zeros(term_idx(s), 1);
-    for t = 1:term_idx(s)
-        enabled_idx = disabled_electrodes{s}(:,t) == 1;
-        idx_all = cat(1, SurveyData{s}(1, enabled_idx).PFM_TIdx);
-        nidx = unique(idx_all);
-        prop_hand(t) = length(nidx) / total_palm_pixels;
+clf; 
+% Relative coverage
+subplot(3,3,1); hold on
+    for s = 1:num_subjects
+        prop_hand = zeros(term_idx(s), 1);
+        for t = 1:term_idx(s)
+            enabled_idx = disabled_electrodes{s}(:,t) == 1;
+            idx_all = cat(1, SurveyData{s}(1, enabled_idx).PFM_TIdx);
+            nidx = unique(idx_all);
+            prop_hand(t) = length(nidx) / total_palm_pixels;
+        end
+        prop_hand = prop_hand ./ max(prop_hand);
+        plot(dx(1:term_idx(s)) ./ 365, prop_hand, 'Color', SubjectColors(subjects_alt{s}), ...
+        'LineWidth', 2);
     end
-    prop_hand = prop_hand ./ max(prop_hand);
-    plot(dx(1:term_idx(s)) ./ 365, prop_hand, 'Color', SubjectColors(subjects_alt{s}), ...
-    'LineWidth', 2);
-end
+    
+    ylabel('Relative Coverage')
+    xlabel('Years from Implant')
 
-ylabel('Relative Coverage')
-xlabel('Years from Implant')
+% Number of surveys
+subplot(3,3,2); hold on
+    for s = 1:num_subjects
+        Swarm(s, unique_surveys(s), 'DS', 'Bar', 'SPL', 0, 'Color', SubjectColors(subjects_alt{s}))
+    end
+
+    set(gca, 'XLim', [.5 5.5], ...
+             'XTick', [1:5], ...
+             'XTickLabel', ColorText(subjects_alt, SubjectColors(subjects_alt)))
+    ylabel('# Surveys')
+
+% Pain frequency
+subplot(3,3,3); hold on
+    for s = 1:num_subjects
+        Swarm(s, mean(QualityData(s).Responses.Pain > 0) * 100 ,...
+            'DS', 'Bar', 'SPL', 0, 'Color', SubjectColors(subjects_alt{s}))
+    end
+
+    set(gca, 'XLim', [.5 5.5], ...
+             'XTick', [1:5], ...
+             'XTickLabel', ColorText(subjects_alt, SubjectColors(subjects_alt)), ...
+             'YLim', [0 100])
+    ylabel('Pain Reported (%)')
+
+% Pain rating
+subplot(3,3,4); hold on
+
+    % Stim related
+    % P3
+    idx = QualityData(4).Responses.Pain > 0;
+    Swarm(3, mean(QualityData(4).Responses.Pain (idx)),...
+        'DS', 'Bar', 'SPL', 0, 'Color', SubjectColors('P3'))
+    % P4
+    idx = QualityData(5).Responses.Pain > 0;
+    Swarm(4, mean(QualityData(5).Responses.Pain (idx)),...
+        'DS', 'Bar', 'SPL', 0, 'Color', SubjectColors('P4'))
+    % 
+    % set(gca, 'XLim', [.5 5.5], ...
+    %          'XTick', [1:5], ...
+    %          'XTickLabel', ColorText(subjects_alt, SubjectColors(subjects_alt)))
+    ylabel('Pain Rating')
+
+
+
+shg
 
 %% Functions
 function mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)

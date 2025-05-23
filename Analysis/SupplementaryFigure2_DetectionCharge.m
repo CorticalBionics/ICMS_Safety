@@ -207,5 +207,5 @@ all_ax = flipud(get(gcf(), 'Children'));
 AddFigureLabels(all_ax(1), [0.05, 0.02], 64)
 AddFigureLabels(all_ax(7), [0.05, 0.02], 65)
 AddFigureLabels(all_ax(12), [0.075, 0.02], 66)
-export_figure3x(FigurePath, 'SuppFig2_Detection')
+% export_figure3x(FigurePath, 'SuppFig2_Detection')
 shg
