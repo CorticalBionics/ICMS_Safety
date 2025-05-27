@@ -266,6 +266,7 @@ for x = 1:length(xticks)
 end
 
 clf; 
+set(gcf, 'Units', 'Inches', 'Position', [30 1 6.4 6])
 % Relative coverage
 subplot(3,3,1); hold on
     for s = 1:num_subjects
@@ -285,7 +286,8 @@ subplot(3,3,1); hold on
     xlabel('Years from Implant')
     set(gca, 'XTick', xticks, ...
              'XTickLabel', xticklabels, ...
-             'XTickLabelRotation', 0)
+             'XTickLabelRotation', 0, ...
+             'YLim', [0.5 1])
 
 % Number of surveys
 subplot(3,3,2); hold on

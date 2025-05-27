@@ -76,6 +76,6 @@ for f = 1:length(flist)
     end
 end
 
-% Run the permutations to assess stability
+% Assess stability over time
 
 save(fullfile(DataPath, 'QualityData'), "QualityData")
