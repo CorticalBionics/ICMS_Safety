@@ -81,10 +81,27 @@ for s = 1:num_subjects
         plot(x_vec, y_vec, 'Color', col, 'LineWidth', 2)
     end
     xm = ceil(max(d, [], 'omitnan'));
+
+    xl = [0, xm];
+    xt = [xl(1):xl(end)];
+    xl = [xl(1) - range(xl) * 0.05, xl(end) + range(xl) * 0.05];
+    xtl = cell(size(xt));
+    for i = 1:length(xtl)
+        if i == 1
+            xtl{i} = '0';
+        elseif i == length(xtl)
+            xtl{i} = num2str(i-1);
+        else
+            xtl{i} = '';
+        end
+    end
+
     set(gca, 'YTick', [1,32, 64], ...
              'YLim', [0 64.5], ...
-             'XLim', [0 xm], ...
-             'XTick', [0:xm])
+             'XLim', xl, ...
+             'XTick', xt, ...
+             'XTickLabel', xtl, ...
+             'XTickLabelRotation', 0)
     title(subjects{s}, 'Color', SubjectColors(subjects{s}))
     if s == 5
         xlabel('Years post Implant', 'VerticalAlignment', 'top')

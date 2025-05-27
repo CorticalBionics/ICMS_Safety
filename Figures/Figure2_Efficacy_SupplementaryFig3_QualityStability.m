@@ -127,7 +127,15 @@ end
 % Discretize and compute naturalness and quality frequency per year
 for i = 1:num_subjects
     % Discretize to years
-    y = years(QualityData(i).Responses.Date - min(QualityData(i).Responses.Date));
+    % Get implant date
+    if startsWith(subjects{i}, 'BCI')
+        subj_config = cc.load_config.participant(subjects{i}, 'chicago');
+    else
+        subj_config = cc.load_config.participant(subjects{i}, 'pitt');
+    end
+    implant_date = datetime(subj_config.implant_date, "InputFormat", "uuuu-MM-dd");
+
+    y = years(QualityData(i).Responses.Date - implant_date);
     y_max = ceil(max(y));
     % Filter for any responses
     any_resp = any(QualityData(i).Responses{:,3:end} > 0, 2);
@@ -282,17 +290,30 @@ x = 1;
 xt = [];
 xtl = {};
 % P2
-axes('Position', [0.49, .1, 0.41, ax_h-.025]); hold on
+axes('Position', [0.49, .11, 0.41, ax_h-.025]); hold on
 [x, xt, xtl] = quality_freq_bar(QualityData(3).Frequency, cols, x, xt, xtl);
 [x, xt, xtl] = quality_freq_bar(QualityData(1).Frequency, cols, x + 1, xt, xtl);
 
+
 set(gca, 'XLim', [.5, x+.2], ...
-         'XTick', xt+.4, ...
-         'XTickLabel', xtl, ...
          'YTick', [], ...
-         'YLim', [-.01 1])
-xlabel('Years from Implant', 'VerticalAlignment', 'middle')
+         'YLim', [0 1], ...
+         'XColor', 'none', ...
+         'Clipping', 'off')
+xlabel('Years from Implant', 'VerticalAlignment', 'top', 'Color', 'k')
 ylabel('Quality Frequency')
+
+% Fake x-axis
+y = -0.05;
+plot([1, 10.8], [y y], 'Color', 'k', 'LineWidth', 1)
+plot([12, 16.8], [y y], 'Color', 'k', 'LineWidth', 1)
+for i = [1:10, 12:16] + 0.4
+    plot([i,i], [y, y+abs(y/3)], 'Color', 'k')
+end
+text(1.4, y*1.5, '1', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
+text(10.4, y*1.5, '10', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
+text(12.4, y*1.5, '1', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
+text(16.4, y*1.5, '5', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
 
 [x,y] = GetAxisPosition(gca, 120, 100);
 leg_text = {'Touch', 'Pressure', 'Tapping', 'Poke', 'Sharp', ...
