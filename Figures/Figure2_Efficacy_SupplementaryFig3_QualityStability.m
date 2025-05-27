@@ -124,11 +124,15 @@ for i = 1:num_subjects
     unique_surveys(i) = mode(nu);
 end
 
-% Discretize and compute naturalness per year
+% Discretize and compute naturalness and quality frequency per year
 for i = 1:num_subjects
-    any_resp = any(QualityData(i).Responses{:,3:end} > 0, 2);
+    % Discretize to years
     y = years(QualityData(i).Responses.Date - min(QualityData(i).Responses.Date));
     y_max = ceil(max(y));
+    % Filter for any responses
+    any_resp = any(QualityData(i).Responses{:,3:end} > 0, 2);
+    
+    % Compute naturalness for each year across channels
     nat_mat = NaN(y_max, num_channels);
     for c = 1:num_channels
         c_idx = QualityData(i).Responses.channel == c;
@@ -137,8 +141,22 @@ for i = 1:num_subjects
             nat_mat(j,c) = mean(QualityData(i).Responses.Naturalness(y_idx & c_idx & any_resp), 'omitnan');
         end
     end
-    QualityData(i).Naturalness = nat_mat;
+    QualityData(i).Naturalness = nat_mat; %#ok<*SAGROW>
+
+    % Compute quality frequency in each year
+    resp_mat = QualityData(i).Responses{:, [6:end]};
+    qual_mat = NaN(y_max, size(resp_mat, 2), num_channels); % year by 'distinct' quality by electrode
+    for c = 1:num_channels
+        c_idx = QualityData(i).Responses.channel == c;
+        for j = 1:y_max
+            y_idx = (j-1 < y) & (y < j);
+            qual_mat(j, :, c) = mean(resp_mat(y_idx & c_idx & any_resp, :) > 0, 1) > 0.3;
+        end
+    end
+    qual_mat = mean(qual_mat, 3, 'omitnan'); % Proportion of electrodes for each quality
+    QualityData(i).Frequency = qual_mat ./ sum(qual_mat, 2); % Normalize within year
 end
+
 
 %% Figure 2
 SetFont('Arial', 9)
@@ -236,13 +254,67 @@ ax(3) = axes('Position', [ax_xs(3), ax_ys(2), ax_w, ax_h]); hold on
     s = 1; t = floor(length(dx) / 2) - 1;
     mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
 
+
+% Quality frequency bar charts
+% Color for each quality
+cols = [...
+        % Orange/teal
+        rgb(255, 193, 7); ... % Hot
+        rgb(0, 150, 136); ... % Cold
+        % Reds
+        rgb(198, 40, 40); ... % Paresthesia-Tingle
+        rgb(229, 57, 53); ... % Paresthesia-Itch
+        rgb(239, 83, 80); ... % Paresthesia-Tickle
+        rgb(239, 154, 154); ... % Paresthesia-Electrical
+        % Purples
+        rgb(206, 147, 216); ... % Movement-Flutter
+        rgb(171, 71, 188); ... % Movement-Sparkle
+        rgb(171, 71, 188); ... % Movement-Buzzing
+        rgb(106, 27, 154); ... % Movement-Vibration
+        % Blues
+        rgb(33, 150, 243); ... % Mechanical-Sharp
+        rgb(159, 168, 218); ... % Mechanical-Poke
+        rgb(63, 81, 181); ... % Mechanical-Tapping
+        rgb(21, 101, 192); ... % Mechanical-Pressure
+        rgb(40, 53, 147); ... % Mechanical-Touch
+        ];
+x = 1;
+xt = [];
+xtl = {};
+% P2
+axes('Position', [0.49, .1, 0.41, ax_h-.025]); hold on
+[x, xt, xtl] = quality_freq_bar(QualityData(3).Frequency, cols, x, xt, xtl);
+[x, xt, xtl] = quality_freq_bar(QualityData(1).Frequency, cols, x + 1, xt, xtl);
+
+set(gca, 'XLim', [.5, x+.2], ...
+         'XTick', xt+.4, ...
+         'XTickLabel', xtl, ...
+         'YTick', [], ...
+         'YLim', [-.01 1])
+xlabel('Years from Implant', 'VerticalAlignment', 'middle')
+ylabel('Quality Frequency')
+
+[x,y] = GetAxisPosition(gca, 120, 100);
+leg_text = {'Touch', 'Pressure', 'Tapping', 'Poke', 'Sharp', ...
+            'Vibration', 'Buzzing', 'Sparkle', 'Flutter', ...
+            'Tingle', 'Itch', 'Tickle', 'Electrical', ...
+            'Other'};
+tex_cols = [cols([15:-1:11],:); ...
+            cols([10:-1:7],:); ...
+            cols([3:1:6],:); .6 .6 .6];
+idx = [1,2,5,6,7,10,14];
+text(x,y, ColorText(leg_text(idx), tex_cols(idx,:)), 'HorizontalAlignment', 'Right', 'VerticalAlignment', 'top')
+text(5, 1.1, ColorText('P2', SubjectColors('P2')))
+text(14, 1.1, ColorText('C1', SubjectColors('C1')))
+
+
 % Labels 
 AddFigureLabels(ax, [0.05 -0.01])
 char_offset = 67;
 annotation("textbox", [0.025 .45 .05 .05], 'String', char(char_offset+1), ...
 'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
 
-annotation("textbox", [0.475 .45 .05 .05], 'String', char(char_offset+2), ...
+annotation("textbox", [0.45 .45 .05 .05], 'String', char(char_offset+2), ...
 'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
 
 % export_figure3x(FigurePath, 'Fig2_Efficacy')
@@ -380,4 +452,32 @@ function mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p,
 
     set(overlay_ax, 'DataAspectRatio', [1 1 1], 'Color', 'none', 'XColor', 'none', 'YColor', 'none', 'XLim', xl, 'YLim', yl)
     set(palm_ax, 'DataAspectRatio', [1 1 1], 'XColor', 'k', 'YColor', 'k', 'YDir', 'reverse', 'XLim', xl, 'YLim', yl)
+end
+
+function [x, xt, xtl] = quality_freq_bar(cf, cols, x, xt, xtl)
+    freq_t = 0.1; % Threshold below which to remove
+    cf = fliplr(cf); % Flip the order so parasthesias get plotted first
+    % cols = flipud(cols);
+    
+    for y = 1:size(cf, 1)
+        cfy = cf(y,:);
+        % Plot all values below threshold as gray
+        idx = cfy < freq_t;
+        other = sum(cfy(idx));
+        patch([x, x, x+.8 x+.8], [0, other, other, 0], [.6 .6 .6], ...
+                'LineStyle', 'none', 'FaceAlpha', .9);
+
+        % Plot values above threshold
+        cfy = cfy(~idx);
+        cols_filt = cols(~idx,:);
+        cfy = cumsum(cfy, 2) + other;
+        cfy = [other, cfy];
+        for q = 1:size(cfy, 2)-1
+            patch([x, x, x+.8 x+.8], [cfy(q), cfy(q+1), cfy(q+1), cfy(q)], cols_filt(q, :), ...
+                'LineStyle', 'none', 'FaceAlpha', .9);
+        end
+        xt = [xt, x]; %#ok<*AGROW>
+        xtl = [xtl, num2str(y)];
+        x = x + 1;
+    end
 end
