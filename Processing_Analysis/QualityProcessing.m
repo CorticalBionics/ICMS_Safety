@@ -76,6 +76,22 @@ for f = 1:length(flist)
     end
 end
 
-% Assess stability over time
 
-save(fullfile(DataPath, 'QualityData'), "QualityData")
+%% Assess stability over time
+clearvars -except QualityData num_subjects
+num_electrodes = 64;
+
+for s = 1%:num_subjects
+    for e = 1:num_electrodes
+        e_idx = QualityData(s).Responses.channel == e;
+        if sum(e_idx) < 10 % Skip electrodes with too few observations
+            continue
+        end
+        
+        % Get matrix for easy operations
+        percept_mat = QualityData(s).Responses{e_idx, 6:end};
+        % Remove rows with no response and qualities that were never detected
+    end
+end
+
+% save(fullfile(DataPath, 'QualityData'), "QualityData")

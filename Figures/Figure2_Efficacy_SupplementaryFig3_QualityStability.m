@@ -98,7 +98,8 @@ for s = 1:num_subjects
     d = d(sort_idx);
     t = t(sort_idx);
     ttfs_idx = find(~isnan(t) & ~isinf(t) & t < t_max, 1, 'first');
-    fprintf('%s Time to first sensation: %d\n', subjects_alt{s}, d(ttfs_idx))
+    fprintf('%s\n', subjects_alt{s})
+    fprintf('\tTime to first sensation: %d\n', d(ttfs_idx))
     
     % Discretize
     dv = cell(size(dx)); % Thresholds in each bin
@@ -111,6 +112,9 @@ for s = 1:num_subjects
         dv{i}(isinf(dv{i})) = NaN;
     end
     discretized_thresholds{s} = dv;
+
+    % Print medial starting threshold for each participant
+    fprintf('\tMedian starting DT: %0.1f\n', median(discretized_thresholds{s}{1}, 'omitnan'))
 end
 
 %% Analyze quality data
@@ -124,6 +128,7 @@ for i = 1:num_subjects
     unique_surveys(i) = mode(nu);
 end
 
+num_perms = 1e1;
 % Discretize and compute naturalness and quality frequency per year
 for i = 1:num_subjects
     % Discretize to years
@@ -141,7 +146,7 @@ for i = 1:num_subjects
     any_resp = any(QualityData(i).Responses{:,3:end} > 0, 2);
     
     % Compute naturalness for each year across channels
-    nat_mat = NaN(y_max, num_channels);
+    nat_mat = NaN(y_max+1, num_channels);
     for c = 1:num_channels
         c_idx = QualityData(i).Responses.channel == c;
         for j = 1:y_max
@@ -163,9 +168,58 @@ for i = 1:num_subjects
     end
     qual_mat = mean(qual_mat, 3, 'omitnan'); % Proportion of electrodes for each quality
     QualityData(i).Frequency = qual_mat ./ sum(qual_mat, 2); % Normalize within year
+
+    % Permutations for quality stability
+    qual_corr_mat = NaN(num_channels, y_max);
+    qual_corr_mat_null = NaN(num_channels, y_max, num_perms);
+    for c = 1:num_channels
+        c_idx = QualityData(i).Responses.channel == c;
+        x = QualityData(i).Responses.Date(c_idx & any_resp);
+        y = QualityData(i).Responses{c_idx & any_resp, [6:end]}';
+        % Filter out never observed qualities
+        filt_idx = ~any(y > 0, 2);
+        y = y(~filt_idx, :);
+
+        if isempty(y)
+            continue
+        end
+        
+        % Pairwise distance & correlation
+        mask = tril(true(length(x)), -1);
+        dxp = squareform(pdist(datenum(x))); %#ok<DATNM>
+        r = corr(y, 'Rows', 'pairwise');
+
+        % Shuffle and correlate
+        temp_perm_r = cell(num_perms, 1);
+        for p = 1:num_perms
+            y_perm = y;
+            for j = 1:size(y, 2)
+                y_perm(:,j) = y_perm(randperm(size(y, 1)), j);
+            end
+            pr = corr(y_perm, 'Rows', 'pairwise');
+            temp_perm_r{p} = pr(mask);
+        end
+        
+        % Combine within channel/year
+        dy = dxp(mask) ./ 365;
+        r = r(mask);
+        for j = 1:y_max
+            idx = dy < j & dy > j - 1;
+            if sum(idx) < 10 % Only take average of high N
+                continue
+            end
+            qual_corr_mat(c,j) = mean(r(idx), 'omitnan');
+            for p = 1:num_perms
+                qual_corr_mat_null(c,j,p) = mean(temp_perm_r{p}(idx), 'omitnan');
+            end
+        end
+    end
+
+    QualityData(i).StabilityCorrelation.corr = qual_corr_mat;
+    QualityData(i).StabilityCorrelation.null = qual_corr_mat_null;
 end
 
-
+return
 %% Figure 2
 SetFont('Arial', 9)
 
@@ -296,12 +350,12 @@ axes('Position', [0.49, .11, 0.41, ax_h-.025]); hold on
 
 
 set(gca, 'XLim', [.5, x+.2], ...
-         'YTick', [], ...
+         'YTick', [0, 1], ...
          'YLim', [0 1], ...
          'XColor', 'none', ...
          'Clipping', 'off')
 xlabel('Years from Implant', 'VerticalAlignment', 'top', 'Color', 'k')
-ylabel('Quality Frequency')
+ylabel('Quality Frequency', 'VerticalAlignment', 'middle')
 
 % Fake x-axis
 y = -0.05;
@@ -330,7 +384,7 @@ text(14, 1.1, ColorText('C1', SubjectColors('C1')))
 
 
 % Labels 
-AddFigureLabels(ax, [0.05 -0.01])
+AddFigureLabels(ax, [0.05 -0.015])
 char_offset = 67;
 annotation("textbox", [0.025 .45 .05 .05], 'String', char(char_offset+1), ...
 'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
@@ -345,23 +399,25 @@ return
 
 
 %% Supplementary Figure 3
+[ax_w, ax_xs] = GetAxisCoords(3, .1, .075);
+[ax_h, ax_ys] = GetAxisCoords(2, .1, .1); ax_ys(2) = ax_ys(2) + .05;
 
-xticks = [1:10];
+xticks = [0:10];
 xticklabels = cell(size(xticks));
 for x = 1:length(xticks)
     if x == 1
-        xticklabels{x} = num2str(x);
+        xticklabels{x} = num2str(xticks(x));
     elseif x == length(xticks)
-        xticklabels{x} = num2str(x);
+        xticklabels{x} = num2str(xticks(x));
     else
         xticklabels{x} = '';
     end
 end
 
 clf; 
-set(gcf, 'Units', 'Inches', 'Position', [30 1 6.4 6])
+set(gcf, 'Units', 'Inches', 'Position', [30 1 6.4 4])
 % Relative coverage
-subplot(3,3,1); hold on
+axes('Position', [ax_xs(1), ax_ys(2), ax_w, ax_h]); hold on
     for s = 1:num_subjects
         prop_hand = zeros(term_idx(s), 1);
         for t = 1:term_idx(s)
@@ -383,7 +439,7 @@ subplot(3,3,1); hold on
              'YLim', [0.5 1])
 
 % Number of surveys
-subplot(3,3,2); hold on
+axes('Position', [ax_xs(2), ax_ys(2), ax_w, ax_h]); hold on
     for s = 1:num_subjects
         Swarm(s, unique_surveys(s), 'DS', 'Bar', 'SPL', 0, 'Color', SubjectColors(subjects_alt{s}))
     end
@@ -395,14 +451,16 @@ subplot(3,3,2); hold on
     ylabel('# Surveys')
 
 % Naturalness
-subplot(3,3,3); hold on
+axes('Position', [ax_xs(3), ax_ys(2), ax_w, ax_h]); hold on
     for s = 1:num_subjects
-        AlphaLine([1:size(QualityData(s).Naturalness, 1)], QualityData(s).Naturalness, ...
+        x = [1:size(QualityData(s).Naturalness, 1)] - .5;
+        y = QualityData(s).Naturalness;
+        AlphaLine(x, y, ...
             SubjectColors(subjects_alt{s}), 'LineWidth', 2)
     end
 
     set(gca, 'XLim', [0 10], ...
-             'XTick', [1:10], ...
+             'XTick', [0:10], ...
              'YLim', [0 10])
     ylabel('Naturalness')
     xlabel('Years from Implant')
@@ -411,7 +469,7 @@ subplot(3,3,3); hold on
              'XTickLabelRotation', 0)
 
 % Pain frequency
-subplot(3,3,4); hold on
+axes('Position', [ax_xs(1), ax_ys(1), ax_w, ax_h]); hold on
     for s = 1:num_subjects
         % Number of pain reports
         pain_resp = sum(QualityData(s).Responses.Pain > 0);
@@ -428,8 +486,7 @@ subplot(3,3,4); hold on
     ylabel('Pain Reported (%)')
 
 % Pain rating
-subplot(3,3,5); hold on
-
+axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
     % Stim related
     % P3
     idx = QualityData(4).Responses.Pain > 0;
@@ -449,9 +506,39 @@ subplot(3,3,5); hold on
              'XTickLabel', {'Stim', 'Baseline'})
     ylabel('Pain Rating')
 
+% Quality stability
+xticks = [0:8];
+xticklabels = cell(size(xticks));
+for x = 1:length(xticks)
+    if x == 1
+        xticklabels{x} = num2str(xticks(x));
+    elseif x == length(xticks)
+        xticklabels{x} = num2str(xticks(x));
+    else
+        xticklabels{x} = '';
+    end
+end
 
+axes('Position', [ax_xs(3), ax_ys(1), ax_w, ax_h]); hold on
+for p = [1,3,4] % Other participants don't have enough sessions to plot
+    xl = 1:size(QualityData(p).StabilityCorrelation.corr,2);
+    AlphaLine(xl - .5, QualityData(p).StabilityCorrelation.corr, SubjectColors(subjects_alt{p}), ...
+        'ErrorType', 'Percentiles')
+    AlphaLine(xl - .5, mean(QualityData(p).StabilityCorrelation.null, 3, 'omitnan'), SubjectColors(subjects_alt{p}), ...
+        'ErrorType', 'STD', 'LineStyle', '--')
+end
 
-shg
+text(8.25, 0, {'- -'; 'Shuffle'}, 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'left')
+
+ylabel("Correlation (r)")
+xlabel('Time between Surveys (years)')
+set(gca, 'XLim', [0, max(xticks)], ...
+         'XTick', xticks, ...
+         'XTickLabel', xticklabels, ...
+         'XTickLabelRotation', 0)
+
+AddFigureLabels(gcf, [0.05 -0.015])
+% export_figure3x(FigurePath, 'SuppFig3_QualityStability')
 
 %% Functions
 function mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
