@@ -1,7 +1,7 @@
 % Signal Quality Analysis
-subjects = {'BCI02', 'BCI03', 'CRS02', 'CRS07', 'CRS08'};
+load(fullfile(DataPath, "SQ_Analysis"))
 subject_alt = {'C1', 'C2', 'P2' 'P3', 'P4'};
-num_participants = length(subjects);
+num_participants = length(subject_alt);
 
 %% Supplementary Figure 4
 [ax_size_y, ax_y_val] = GetAxisCoords(num_participants, 0.04, 0.05);
@@ -19,8 +19,7 @@ SetFont('Arial', 9)
 % Line plots
 for p = 1:num_participants
     % Get dates for SQData
-    x = datetime(num2str(SQData(p).session_dates'), 'Format', 'yyyyMMdd');
-    x = years(x - implant_dates(p));
+    x = SQAnalysis.sq_dates{p};
     xl = [0, ceil(x(end))];
     xt = [xl(1):xl(end)];
     xl = [xl(1) - range(xl) * 0.05, xl(end) + range(xl) * 0.05];
@@ -29,12 +28,12 @@ for p = 1:num_participants
     % SNR
     axes('Position', [ax_x_val(1), ax_y_val(p), ax_size_x, ax_size_y]); hold on
         % Sensory
-        y = median_SNR{p}.sensory;
+        y = SQAnalysis.median_SNR{p}.sensory;
         scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .1)
         r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
         plot(xl, polyval(r, xl), 'Color', sensory_color, 'LineWidth', 2);
         % Motor
-        y = median_SNR{p}.motor;
+        y = SQAnalysis.median_SNR{p}.motor;
         scatter(x, y, marker_size, motor_color, 'MarkerEdgeAlpha', .1)
         r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
         plot(xl, polyval(r, xl), 'Color', motor_color, 'LineWidth', 2);
@@ -58,12 +57,12 @@ for p = 1:num_participants
     % Vpp
     axes('Position', [ax_x_val(2), ax_y_val(p), ax_size_x, ax_size_y]); hold on
         % Sensory
-        y = median_Vpp{p}.sensory;
+        y = SQAnalysis.median_Vpp{p}.sensory;
         scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .1)
         r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
         plot(xl, polyval(r, xl), 'Color', sensory_color, 'LineWidth', 2);
         % Motor
-        y = median_Vpp{p}.motor;
+        y = SQAnalysis.median_Vpp{p}.motor;
         scatter(x, y, marker_size, motor_color, 'MarkerEdgeAlpha', .1)
         r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
         plot(xl, polyval(r, xl), 'Color', motor_color, 'LineWidth', 2);
@@ -82,10 +81,8 @@ for p = 1:num_participants
 
     % Cleaning
     axes('Position', [ax_x_val(3), ax_y_val(p), ax_size_x, ax_size_y]); hold on
-        idx = cellfun(@(c) ~isempty(c), {cleaning_data{p}.vmin});
-        x = [cleaning_data{p}(idx).date];
-        x = years(x - implant_dates(p));
-        y = median_vinter{p};
+        x = SQAnalysis.cln_dates{p};
+        y = SQAnalysis.median_vinter{p};
         y(y < -1.5) = NaN; % Disconnected channels
         scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .25)
         r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
@@ -199,12 +196,6 @@ for pi = 1:num_participants
     o = o - 3;
 end
 
-% Holm Bonferroni correction
-p_all = [SNR_charge_rp; Vpp_charge_rp; vinter_charge_rp];
-p_all = HolmBonferroni(p_all);
-SNR_charge_rp = p_all(1,:);
-Vpp_charge_rp = p_all(2,:);
-vinter_charge_rp = p_all(3,:);
 
 xlabel(ax(2), 'Charge per Electrode (mC)', 'FontWeight', 'bold')
 

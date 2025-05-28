@@ -42,8 +42,9 @@ clearvars data all_charge total_current s_idx pi
 %% Analyze SNR/VPP/Cleaning
 [SNR_r, SNR_rp, SNR_slope, Vpp_r, Vpp_rp, Vpp_slope] = deal(NaN(256, num_participants));
 [Cln_r, Cln_rp, Cln_slope] = deal(NaN(64, num_participants));
-[median_SNR, median_Vpp, median_vinter] = deal(cell(num_participants, 1));
-[med_SNR_r, med_SNR_p, med_Vpp_r, med_Vpp_p, med_Cln_r, med_Cln_p] = deal(NaN(num_participants, 1));
+[median_SNR, median_Vpp, median_vinter, sq_dates, cln_dates] = deal(cell(num_participants, 1));
+[med_SNR_r, med_SNR_p, med_Vpp_r, med_Vpp_p] = deal(NaN(num_participants, 2));
+[med_Cln_r, med_Cln_p] = deal(NaN(num_participants, 1));
 
 correlation_type = 'spearman';
 for pi = 1:num_participants
@@ -58,6 +59,7 @@ for pi = 1:num_participants
     %%% SNR
     x = datetime(num2str(SQData(pi).session_dates'), 'Format', 'yyyyMMdd');
     x = years(x - x(1));
+    sq_dates{pi} = x;
     y = cat(1, SQData(pi).signal_quality_analysis.ch_snr);
     y_snr = 10.^(y./20); % Undo log scaling
     %%% Vpp
@@ -76,16 +78,21 @@ for pi = 1:num_participants
     y_snr = movmedian(y_snr, 3, 1, 'omitnan');
     median_SNR{pi}.sensory = median(y_snr(:, sensory_mask), 2, 'omitnan');
     median_SNR{pi}.motor = median(y_snr(:, motor_mask), 2, 'omitnan');
+    [med_SNR_r(pi,1), med_SNR_p(pi,1)] = corr(x, median_SNR{pi}.sensory, 'Rows', 'complete');
+    [med_SNR_r(pi,2), med_SNR_p(pi,2)] = corr(x, median_SNR{pi}.motor, 'Rows', 'complete');
     % Vpp
     y_vpp = movmedian(y_vpp, 3, 1, 'omitnan');
     median_Vpp{pi}.sensory = median(y_vpp(:, sensory_mask), 2, 'omitnan');
     median_Vpp{pi}.motor = median(y_vpp(:, motor_mask), 2, 'omitnan');
+    [med_Vpp_r(pi,1), med_Vpp_p(pi,1)] = corr(x, median_SNR{pi}.sensory, 'Rows', 'complete');
+    [med_Vpp_r(pi,2), med_Vpp_p(pi,2)] = corr(x, median_SNR{pi}.motor, 'Rows', 'complete');
     
 
     %%% Cleaning
     idx = cellfun(@(c) ~isempty(c), {cleaning_data{pi}.vmin});
     x = [cleaning_data{pi}(idx).date];
     x = years(x - x(1));
+    cln_dates{pi} = x';
     y = cat(2, [cleaning_data{pi}(idx).vinter]);
     y(y < -1.5) = NaN; % Disconnected channels
     for c = 1:64
@@ -102,9 +109,13 @@ SNR_rp = HolmBonferroni(SNR_rp);
 Vpp_rp = HolmBonferroni(Vpp_rp);
 Cln_rp = HolmBonferroni(Cln_rp);
 med_Cln_p = med_Cln_p * num_participants;
+med_Vpp_p = med_Vpp_p .* num_participants * 2;
+med_SNR_p = med_SNR_p .* num_participants * 2;
 
 % Store in structure and save
 SQAnalysis = struct();
+SQAnalysis.sq_dates = sq_dates;
+SQAnalysis.cln_dates = cln_dates;
 SQAnalysis.SNR_r = SNR_r;
 SQAnalysis.SNR_rp = SNR_rp;
 SQAnalysis.SNR_slope = SNR_slope;
