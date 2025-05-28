@@ -38,6 +38,67 @@ end
 fprintf('Grand mean DT slope = %0.2f\n', mean(cat(1, slopes_all{:}), 'omitnan') * 365)
 anova_tab = anovan(cat(1, slopes_all{:}), cat(1, g1{:}));
 
+%% SNR/VPP/Cleaning Slopes
+num_arrays = 2;
+flist = dir(fullfile(DataPath, 'SignalQuality', '*.mat'));
+
+SQData = cell(num_subjects, 1);
+% Load SQData and process VM data
+implant_dates = NaT(num_subjects, 1);
+for pi = 1:num_subjects
+    % Load SQ Data
+    SQData{pi} = load(fullfile(DataPath, 'SignalQuality', flist(pi).name));
+    SQData{pi}.participant = flist(pi).name(1:5);
+    implant_dates(pi) = datetime(SQData{pi}.implant_metadata.implant_date, 'Format', 'dd-MMM-uuuu');
+end
+SQData = cat(1, SQData{:});
+
+% Load cleaning data
+load(fullfile(DataPath, 'CleaningData'));
+% Remove data from before 14-Aug-2017 (different monitoring system)
+min_date = datetime(736920, 'ConvertFrom', 'datenum');
+for p = 1:num_subjects
+    idx = [cleaning_data{p}.date] > min_date;
+    cleaning_data{p} = cleaning_data{p}(idx);
+end
+
+%%
+[SNR_slope, Vpp_slope] = deal(NaN(256, num_subjects));
+Cln_slope = NaN(64, num_subjects);
+
+for pi = 1:num_subjects
+    % Get sensory and motor masks
+    sens_idx = contains(SQData(pi).implant_metadata.array_names, 'sensory', 'IgnoreCase', true);
+    sensory_mask = SQData(pi).implant_metadata.chan_indices(sens_idx);
+    sensory_mask = cat(2, sensory_mask{:});
+    motor_idx = contains(SQData(pi).implant_metadata.array_names, 'motor', 'IgnoreCase', true);
+    motor_mask = SQData(pi).implant_metadata.chan_indices(motor_idx);
+    motor_mask = cat(2, motor_mask{:});
+
+
+    % SNR
+    x = datetime(num2str(SQData(pi).session_dates'), 'Format', 'yyyyMMdd');
+    x = years(x - x(1));
+    y = cat(1, SQData(pi).signal_quality_analysis.ch_snr);
+    y_snr = 10.^(y./20); % Undo log scaling
+    % Vpp
+    y_vpp = cat(1, SQData(pi).signal_quality_analysis.ch_vpp);
+
+    for c = 1:256
+        SNR_slope(c, pi) = nan_regression(x, y_snr(:,c));
+        Vpp_slope(c, pi) = nan_regression(x, y_vpp(:,c));
+    end    
+    %%% Cleaning
+    idx = cellfun(@(c) ~isempty(c), {cleaning_data{pi}.vmin});
+    x = [cleaning_data{pi}(idx).date];
+    x = years(x - x(1));
+    y = cat(2, [cleaning_data{pi}(idx).vinter]);
+    y(y < -1.5) = NaN; % Disconnected channels
+    for c = 1:64
+        Cln_slope(c, pi) = nan_regression(x, y(c,:));
+    end
+end
+
 %% Analyze detection thresholds
 dw = 250; % Bin width in days
 subj_max_days = zeros(size(DetectionData));
@@ -222,20 +283,20 @@ end
 return
 %% Figure 2
 SetFont('Arial', 9)
-
 clf;
 clearvars ax
 
-set(gcf, 'Units', 'Inches', 'Position', [30 1 6.4 4])
-[ax_w, ax_xs] = GetAxisCoords(3, .1, .05); ax_xs = ax_xs + .025;
-[ax_h, ax_ys] = GetAxisCoords(2, .1, .1); ax_ys(2) = ax_ys(2) + .05;
+motor_color = rgb(0, 137, 123); % Teal
+sensory_color = rgb(244, 67, 54); % Red
 
-h = 2; w = 3;
+set(gcf, 'Units', 'Inches', 'Position', [30 1 6.4 6.5])
+[ax_w, ax_xs] = GetAxisCoords(3, .1, .05); ax_xs = ax_xs + .025;
+[ax_h, ax_ys] = GetAxisCoords(3, .125, .05); ax_ys(1) = ax_ys(1) + 0.025;
 
 [corr_coeffs, corr_coeffs_p] = deal(NaN(num_subjects, 2));
 
 % Detection thresholds
-ax(1) = axes('Position', [ax_xs(1), ax_ys(2), ax_w, ax_h]); hold on
+ax(1) = axes('Position', [ax_xs(1), ax_ys(3), ax_w, ax_h]); hold on
 % axes('Position', [.1 .2 .35 .7]); hold on    
     for s = 1:num_subjects
         AlphaLine(dx ./ 365, discretized_thresholds{s}, SubjectColors(subjects_alt{s}), ...
@@ -263,7 +324,7 @@ ax(1) = axes('Position', [ax_xs(1), ax_ys(2), ax_w, ax_h]); hold on
 
 
 % Threshold time relationship
-ax(2) = axes('Position', [ax_xs(2), ax_ys(2), ax_w, ax_h]); hold on
+ax(2) = axes('Position', [ax_xs(2), ax_ys(3), ax_w, ax_h]); hold on
     plot([.5 5.5], [0 0], 'Color', [.6 .6 .6], 'LineStyle', '--')
     for s = 1:num_subjects-1
         y = [DetectionData{s}.ThresholdDateLinReg];
@@ -279,7 +340,7 @@ ax(2) = axes('Position', [ax_xs(2), ax_ys(2), ax_w, ax_h]); hold on
 
 
 % Functional electrodes
-ax(3) = axes('Position', [ax_xs(3), ax_ys(2), ax_w, ax_h]); hold on
+ax(3) = axes('Position', [ax_xs(3), ax_ys(3), ax_w, ax_h]); hold on
     for s = 1:num_subjects
         plot(dx(1:term_idx(s)) ./ 365, mean(disabled_electrodes{s}(:,1:term_idx(s)), 1, 'omitmissing'), ...
             'Color', SubjectColors(subjects_alt{s}), 'LineWidth', 2)
@@ -289,30 +350,30 @@ ax(3) = axes('Position', [ax_xs(3), ax_ys(2), ax_w, ax_h]); hold on
 
 % Coverage hand maps
 % P2 Timepoint 1
-    p = [0.025, .25, 0.15, ax_h / 2];
+    p = [0.025, ax_ys(2)+ax_h/2 0.15, ax_h / 2];
     s = 3; t = 1;
     mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
     title('Year 1')
 
 % P2 Timepoint 2
-    p = [0.165, .25, 0.15, ax_h / 2];
+    p = [0.165, ax_ys(2)+ax_h/2, 0.15, ax_h / 2];
     s = 3; t = floor(length(dx) / 2);
     mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
     title('Year 5')
 
 % P2 Timepoint 3
-    p = [0.305, .25, 0.15, ax_h / 2];
+    p = [0.305, ax_ys(2)+ax_h/2, 0.15, ax_h / 2];
     s = 3; t = length(dx);
     mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
     title('Year 10')
 
 % C1 Timepoint 1
-    p = [0.025, .05, 0.15, ax_h / 2];
+    p = [0.025, ax_ys(2)-ax_h/10, 0.15, ax_h / 2];
     s = 1; t = 1;
     mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
 
 % C1 Timepoint 2
-    p = [0.165, .05, 0.15, ax_h / 2];
+    p = [0.165, ax_ys(2)-ax_h/10, 0.15, ax_h / 2];
     s = 1; t = floor(length(dx) / 2) - 1;
     mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
 
@@ -344,7 +405,7 @@ x = 1;
 xt = [];
 xtl = {};
 % P2
-axes('Position', [0.49, .11, 0.41, ax_h-.025]); hold on
+axes('Position', [0.5, ax_ys(2), 0.41, ax_h]); hold on
 [x, xt, xtl] = quality_freq_bar(QualityData(3).Frequency, cols, x, xt, xtl);
 [x, xt, xtl] = quality_freq_bar(QualityData(1).Frequency, cols, x + 1, xt, xtl);
 
@@ -382,14 +443,95 @@ text(x,y, ColorText(leg_text(idx), tex_cols(idx,:)), 'HorizontalAlignment', 'Rig
 text(5, 1.1, ColorText('P2', SubjectColors('P2')))
 text(14, 1.1, ColorText('C1', SubjectColors('C1')))
 
+%%% Summary slopes
+% Summary slopes
+xl = [1-.75 num_subjects+.75];
+ax1 = axes('Position', [ax_xs(1), ax_ys(1), ax_w, ax_h]); hold on
+    plot(xl, [0, 0], 'Color', [.6 .6 .6], 'LineStyle', '--')
+ax2 = axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
+    plot(xl, [0, 0], 'Color', [.6 .6 .6], 'LineStyle', '--')
+
+    offset = 0.05;
+    for pi = 1:num_subjects
+        % Get indices to split arrays
+        sens_idx = contains(SQData(pi).implant_metadata.array_names, 'sensory', 'IgnoreCase', true);
+        sensory_mask = SQData(pi).implant_metadata.chan_indices(sens_idx);
+        sensory_mask = cat(2, sensory_mask{:});
+        motor_idx = contains(SQData(pi).implant_metadata.array_names, 'motor', 'IgnoreCase', true);
+        motor_mask = SQData(pi).implant_metadata.chan_indices(motor_idx);
+        motor_mask = cat(2, motor_mask{:});
+
+        % Plot SNR
+        Swarm(pi-offset, SNR_slope(sensory_mask, pi), sensory_color, 'Parent', ax1, ...
+            'Sides', 'left', 'DS', 'violin', 'SPL', 0, 'DW', .35)
+        Swarm(pi+offset, SNR_slope(motor_mask, pi), motor_color, 'Parent', ax1, ...
+            'Sides', 'right', 'DS', 'violin', 'SPL', 0, 'DW', .35)
+        % Ranksum test
+        [P,H] = ranksum(SNR_slope(sensory_mask, pi), SNR_slope(motor_mask, pi));
+        P = P * 5; % Bonferroni correction
+        if P < 0.05
+            text(pi, 1, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
+                'Parent', ax1, 'FontSize', 15)
+            fprintf('Participant %s SNR slope %s\n', subjects_alt{pi}, pStr(P, 3))
+        end
+
+        % Plot Vpp
+        Swarm(pi-offset, Vpp_slope(sensory_mask, pi), sensory_color, 'Parent', ax2, ...
+            'Sides', 'left', 'DS', 'violin', 'SPL', 0, 'DW', .35)
+        Swarm(pi+offset, Vpp_slope(motor_mask, pi), motor_color, 'Parent', ax2, ...
+            'Sides', 'right', 'DS', 'violin', 'SPL', 0, 'DW', .35)
+        % Ranksum test
+        [P,H] = ranksum(Vpp_slope(sensory_mask, pi), Vpp_slope(motor_mask, pi));
+        P = P * 5; % Bonferroni correction
+        if P < 0.05
+            text(pi, 100, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
+                'Parent', ax2, 'FontSize', 15)
+            fprintf('Participant %s VPP slope %s\n', subjects_alt{pi}, pStr(P,3))
+        end
+    end
+    set(ax1, 'YLim', [-1 1], ...
+             'XLim', xl, ...
+             'XTick', [1:num_subjects], ...
+             'XTickLabels', ColorText(subjects_alt, SubjectColors(subjects_alt)))
+    ylabel(ax1, sprintf('%sSNR/year', GetUnicodeChar('Delta')), 'FontWeight', 'bold')
+
+    set(ax2, 'YLim', [-150 100], ...
+             'XLim', xl, ...
+             'XTick', [1:num_subjects], ...
+             'XTickLabels', ColorText(subjects_alt, SubjectColors(subjects_alt)))
+    ylabel(ax2, sprintf('%sVpp (%sV/year)', GetUnicodeChar('Delta'), GetUnicodeChar('mu')), 'FontWeight', 'bold')
+
+axes('Position', [ax_xs(3), ax_ys(1), ax_w, ax_h]); hold on
+    plot(xl, [0, 0], 'Color', [.6 .6 .6], 'LineStyle', '--')
+    for pi = 1:num_subjects
+        Swarm(pi-offset, Cln_slope(:, pi), sensory_color, ...
+            'Sides', 'both', 'DS', 'violin', 'SPL', 0, 'DW', .35)
+    end
+
+    set(gca, 'YLim', [-.25 .25], ...
+             'XLim', xl, ...
+             'XTick', [1:num_subjects], ...
+             'XTickLabels', ColorText(subjects_alt, SubjectColors(subjects_alt)))
+    ylabel(sprintf('%sV_{inter} (V/year)', GetUnicodeChar('Delta')), 'FontWeight', 'bold')
+    shg
+
 
 % Labels 
-AddFigureLabels(ax, [0.05 -0.015])
+AddFigureLabels(ax, [0.05 0.0125])
 char_offset = 67;
-annotation("textbox", [0.025 .45 .05 .05], 'String', char(char_offset+1), ...
+annotation("textbox", [0.025 .6125 .05 .05], 'String', char(char_offset+1), ...
 'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
 
-annotation("textbox", [0.45 .45 .05 .05], 'String', char(char_offset+2), ...
+annotation("textbox", [0.45 .6125 .05 .05], 'String', char(char_offset+2), ...
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
+
+annotation("textbox", [0.025 .2825 .05 .05], 'String', char(char_offset+3), ...
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
+
+annotation("textbox", [0.36 .2825 .05 .05], 'String', char(char_offset+4), ...
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
+
+annotation("textbox", [0.7 .2825 .05 .05], 'String', char(char_offset+5), ...
 'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
 
 % export_figure3x(FigurePath, 'Fig2_Efficacy')
@@ -402,7 +544,19 @@ return
 [ax_w, ax_xs] = GetAxisCoords(3, .1, .075);
 [ax_h, ax_ys] = GetAxisCoords(2, .1, .1); ax_ys(2) = ax_ys(2) + .05;
 
-xticks = [0:10];
+xticks1 = [0:10];
+xticklabels1 = cell(size(xticks1));
+for x = 1:length(xticks1)
+    if x == 1
+        xticklabels1{x} = num2str(xticks1(x));
+    elseif x == length(xticks1)
+        xticklabels1{x} = num2str(xticks1(x));
+    else
+        xticklabels1{x} = '';
+    end
+end
+
+xticks = [0:8];
 xticklabels = cell(size(xticks));
 for x = 1:length(xticks)
     if x == 1
@@ -416,8 +570,20 @@ end
 
 clf; 
 set(gcf, 'Units', 'Inches', 'Position', [30 1 6.4 4])
-% Relative coverage
+% Number of surveys
 axes('Position', [ax_xs(1), ax_ys(2), ax_w, ax_h]); hold on
+    for s = 1:num_subjects
+        Swarm(s, unique_surveys(s), 'DS', 'Bar', 'SPL', 0, 'Color', SubjectColors(subjects_alt{s}))
+    end
+
+    set(gca, 'XLim', [.5 5.5], ...
+             'XTick', [1:5], ...
+             'XTickLabel', ColorText(subjects_alt, SubjectColors(subjects_alt)), ...
+             'YLim', [0 70])
+    ylabel('# Surveys')
+
+% Relative coverage
+axes('Position', [ax_xs(2), ax_ys(2), ax_w, ax_h]); hold on
     for s = 1:num_subjects
         prop_hand = zeros(term_idx(s), 1);
         for t = 1:term_idx(s)
@@ -433,25 +599,33 @@ axes('Position', [ax_xs(1), ax_ys(2), ax_w, ax_h]); hold on
     
     ylabel('Relative Coverage')
     xlabel('Years from Implant')
-    set(gca, 'XTick', xticks, ...
-             'XTickLabel', xticklabels, ...
+    set(gca, 'XTick', xticks1, ...
+             'XTickLabel', xticklabels1, ...
              'XTickLabelRotation', 0, ...
              'YLim', [0.5 1])
 
-% Number of surveys
-axes('Position', [ax_xs(2), ax_ys(2), ax_w, ax_h]); hold on
-    for s = 1:num_subjects
-        Swarm(s, unique_surveys(s), 'DS', 'Bar', 'SPL', 0, 'Color', SubjectColors(subjects_alt{s}))
-    end
+% Quality stability
+axes('Position', [ax_xs(3), ax_ys(2), ax_w, ax_h]); hold on
+for p = [1,3,4] % Other participants don't have enough sessions to plot
+    xl = 1:size(QualityData(p).StabilityCorrelation.corr,2);
+    AlphaLine(xl - .5, QualityData(p).StabilityCorrelation.corr, SubjectColors(subjects_alt{p}), ...
+        'ErrorType', 'Percentiles', 'LineWidth', 2)
+    AlphaLine(xl - .5, mean(QualityData(p).StabilityCorrelation.null, 3, 'omitnan'), SubjectColors(subjects_alt{p}), ...
+        'ErrorType', 'Percentiles', 'LineStyle', '--')
+end
 
-    set(gca, 'XLim', [.5 5.5], ...
-             'XTick', [1:5], ...
-             'XTickLabel', ColorText(subjects_alt, SubjectColors(subjects_alt)), ...
-             'YLim', [0 70])
-    ylabel('# Surveys')
+text(8.25, 0, {'- -'; 'Shuffle'}, 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'left')
+
+ylabel("Correlation (r)")
+xlabel('Time between Surveys (years)')
+set(gca, 'XLim', [0, max(xticks)], ...
+         'XTick', xticks, ...
+         'XTickLabel', xticklabels, ...
+         'XTickLabelRotation', 0)
+
 
 % Naturalness
-axes('Position', [ax_xs(3), ax_ys(2), ax_w, ax_h]); hold on
+axes('Position', [ax_xs(1), ax_ys(1), ax_w, ax_h]); hold on
     for s = 1:num_subjects
         x = [1:size(QualityData(s).Naturalness, 1)] - .5;
         y = QualityData(s).Naturalness;
@@ -464,12 +638,12 @@ axes('Position', [ax_xs(3), ax_ys(2), ax_w, ax_h]); hold on
              'YLim', [0 10])
     ylabel('Naturalness')
     xlabel('Years from Implant')
-    set(gca, 'XTick', xticks, ...
-             'XTickLabel', xticklabels, ...
+    set(gca, 'XTick', xticks1, ...
+             'XTickLabel', xticklabels1, ...
              'XTickLabelRotation', 0)
 
 % Pain frequency
-axes('Position', [ax_xs(1), ax_ys(1), ax_w, ax_h]); hold on
+axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
     for s = 1:num_subjects
         % Number of pain reports
         pain_resp = sum(QualityData(s).Responses.Pain > 0);
@@ -486,7 +660,7 @@ axes('Position', [ax_xs(1), ax_ys(1), ax_w, ax_h]); hold on
     ylabel('Pain Reported (%)')
 
 % Pain rating
-axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
+axes('Position', [ax_xs(3), ax_ys(1), ax_w, ax_h]); hold on
     % Stim related
     % P3
     idx = QualityData(4).Responses.Pain > 0;
@@ -505,37 +679,6 @@ axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
              'XTick', [1.5, 4.5], ...
              'XTickLabel', {'Stim', 'Baseline'})
     ylabel('Pain Rating')
-
-% Quality stability
-xticks = [0:8];
-xticklabels = cell(size(xticks));
-for x = 1:length(xticks)
-    if x == 1
-        xticklabels{x} = num2str(xticks(x));
-    elseif x == length(xticks)
-        xticklabels{x} = num2str(xticks(x));
-    else
-        xticklabels{x} = '';
-    end
-end
-
-axes('Position', [ax_xs(3), ax_ys(1), ax_w, ax_h]); hold on
-for p = [1,3,4] % Other participants don't have enough sessions to plot
-    xl = 1:size(QualityData(p).StabilityCorrelation.corr,2);
-    AlphaLine(xl - .5, QualityData(p).StabilityCorrelation.corr, SubjectColors(subjects_alt{p}), ...
-        'ErrorType', 'Percentiles')
-    AlphaLine(xl - .5, mean(QualityData(p).StabilityCorrelation.null, 3, 'omitnan'), SubjectColors(subjects_alt{p}), ...
-        'ErrorType', 'STD', 'LineStyle', '--')
-end
-
-text(8.25, 0, {'- -'; 'Shuffle'}, 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'left')
-
-ylabel("Correlation (r)")
-xlabel('Time between Surveys (years)')
-set(gca, 'XLim', [0, max(xticks)], ...
-         'XTick', xticks, ...
-         'XTickLabel', xticklabels, ...
-         'XTickLabelRotation', 0)
 
 AddFigureLabels(gcf, [0.05 -0.015])
 % export_figure3x(FigurePath, 'SuppFig3_QualityStability')
@@ -588,4 +731,17 @@ function [x, xt, xtl] = quality_freq_bar(cf, cols, x, xt, xtl)
         xtl = [xtl, num2str(y)];
         x = x + 1;
     end
+end
+
+function slope = nan_regression(x, y)
+    slope = NaN;
+    nan_idx = isnan(y);
+    if sum(~nan_idx) < 10
+        return
+    end
+    if ~all(size(y) == size(x))
+        y = y';
+    end
+    pf = polyfit(x(~nan_idx)', y(~nan_idx)', 1);
+    slope = pf(1);
 end

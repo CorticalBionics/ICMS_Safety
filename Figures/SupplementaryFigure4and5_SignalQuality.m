@@ -58,56 +58,31 @@ for pi = 1:num_participants
     motor_mask = SQData(pi).implant_metadata.chan_indices(motor_idx);
     motor_mask = cat(2, motor_mask{:});
 
-
     %%% SNR
     x = datetime(num2str(SQData(pi).session_dates'), 'Format', 'yyyyMMdd');
     x = years(x - x(1));
     y = cat(1, SQData(pi).signal_quality_analysis.ch_snr);
-    y = 10.^(y./20); % Undo log scaling
-
-    % Apply good session mask
-    y_mask = NaN(size(y));
-    for a = 1:num_arrays
-        % Skip anterior/lateral motor arrays in BCI02 and BCI03
-        if startsWith(subjects{pi}, 'BCI') && strcmp(SQData(p).implant_metadata.array_names{a}, 'Anterior Motor')
-            continue
-        end
-        mask = SQData(pi).good_session_mask{a}; % Good days
-        idx = SQData(pi).implant_metadata.chan_indices{a}; % Good chs
-        y_mask(mask, idx) = y(mask, idx);
-    end
-
-    [SNR_r(:,pi), SNR_rp(:,pi)] = corr(x, y_mask, 'Rows', 'pairwise', 'type', correlation_type);
-    for c = 1:256
-        SNR_slope(c, pi) = nan_regression(x, y_mask(:,c));
-    end
-    
-    % Smooth & subsample
-    y_mask = movmedian(y_mask, 3, 1, 'omitnan');
-    median_SNR{pi}.sensory = median(y_mask(:, sensory_mask), 2, 'omitnan');
-    median_SNR{pi}.motor = median(y_mask(:, motor_mask), 2, 'omitnan');
-
-
+    y_snr = 10.^(y./20); % Undo log scaling
     %%% Vpp
-    y = cat(1, SQData(pi).signal_quality_analysis.ch_vpp); % Same x as SNR
-
-    % Apply good session mask
-    y_mask = NaN(size(y));
-    for a = 1:num_arrays
-        mask = SQData(pi).good_session_mask{a}; % Good days
-        idx = SQData(pi).implant_metadata.chan_indices{a}; % Good chs
-        y_mask(mask, idx) = y(mask, idx);
-    end
-
-    [Vpp_r(:,pi), Vpp_rp(:,pi)] = corr(x, y_mask, 'Rows', 'pairwise', 'type', correlation_type);
-    for c = 1:256
-        Vpp_slope(c, pi) = nan_regression(x, y_mask(:,c));
-    end
+    y_vpp = cat(1, SQData(pi).signal_quality_analysis.ch_vpp); % Same x as SNR
     
-    % Smooth & subsample
-    y_mask = movmedian(y_mask, 3, 1, 'omitnan');
-    median_Vpp{pi}.sensory = median(y_mask(:, sensory_mask), 2, 'omitnan');
-    median_Vpp{pi}.motor = median(y_mask(:, motor_mask), 2, 'omitnan');
+    % Correlations and slopes
+    [SNR_r(:,pi), SNR_rp(:,pi)] = corr(x, y_snr, 'Rows', 'pairwise', 'type', correlation_type);
+    [Vpp_r(:,pi), Vpp_rp(:,pi)] = corr(x, y_vpp, 'Rows', 'pairwise', 'type', correlation_type);
+
+    for c = 1:256
+        SNR_slope(c, pi) = nan_regression(x, y_snr(:,c));
+        Vpp_slope(c, pi) = nan_regression(x, y_vpp(:,c));
+    end   
+
+    % Smooth & subsample SNR
+    y_snr = movmedian(y_snr, 3, 1, 'omitnan');
+    median_SNR{pi}.sensory = median(y_snr(:, sensory_mask), 2, 'omitnan');
+    median_SNR{pi}.motor = median(y_snr(:, motor_mask), 2, 'omitnan');
+    % Vpp
+    y_vpp = movmedian(y_vpp, 3, 1, 'omitnan');
+    median_Vpp{pi}.sensory = median(y_vpp(:, sensory_mask), 2, 'omitnan');
+    median_Vpp{pi}.motor = median(y_vpp(:, motor_mask), 2, 'omitnan');
     
 
     %%% Cleaning
@@ -116,12 +91,13 @@ for pi = 1:num_participants
     x = years(x - x(1));
     y = cat(2, [cleaning_data{pi}(idx).vinter]);
     y(y < -1.5) = NaN; % Disconnected channels
-    [Cln_r(:,pi), Cln_rp(:,pi)] = corr(x', y', 'Rows', 'pairwise', 'type', correlation_type);
     for c = 1:64
         Cln_slope(c, pi) = nan_regression(x, y(c,:));
     end
+    [Cln_r(:,pi), Cln_rp(:,pi)] = corr(x', y', 'Rows', 'pairwise', 'type', correlation_type);
     median_vinter{pi} = median(y, 1, 'omitmissing');
     [med_Cln_r(pi), med_Cln_p(pi)] = corr(x', median_vinter{pi}', 'Rows', 'complete');
+    
 end
 
 % Holm Bonferroni correction
@@ -132,17 +108,16 @@ med_Cln_p = med_Cln_p * num_participants;
 
 
 %% Supplementary Figure 4
-[ax_size_y, ax_y_val] = GetAxisCoords(num_participants + 1, 0.04, 0.05);
+[ax_size_y, ax_y_val] = GetAxisCoords(num_participants, 0.04, 0.05);
 ax_y_val = ax_y_val + 0.03; ax_y_val = flipud(ax_y_val);
-ax_y_val(end) = ax_y_val(end) - 0.05;
 [ax_size_x, ax_x_val] = GetAxisCoords(3, 0.1, 0.075);
 marker_size = 5;
 
-motor_color = rgb(244, 67, 54); % Red
-sensory_color = rgb(0, 137, 123); % Teal
+motor_color = rgb(0, 137, 123); % Teal
+sensory_color = rgb(244, 67, 54); % Red
 
 clf;
-set(gcf, 'Units', 'Inches', 'Position', [27, 1, 6.45, 8.5]);
+set(gcf, 'Units', 'Inches', 'Position', [27, 1, 6.45, 7.5]);
 SetFont('Arial', 9)
 
 % Line plots
@@ -225,7 +200,7 @@ for p = 1:num_participants
         x = years(x - implant_dates(p));
         y = median_vinter{p};
         y(y < -1.5) = NaN; % Disconnected channels
-        scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .15)
+        scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .25)
         r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
         plot(xl, polyval(r, xl), 'Color', sensory_color, 'LineWidth', 2);
         % [r,p] = corr(x,y, 'Rows', 'complete');
@@ -241,76 +216,6 @@ for p = 1:num_participants
         end
 end
 
-% Summary slopes
-xl = [1-.75 num_participants+.75];
-ax1 = axes('Position', [ax_x_val(1), ax_y_val(6), ax_size_x, ax_size_y+0.025]); hold on
-    plot(xl, [0, 0], 'Color', [.6 .6 .6], 'LineStyle', '--')
-ax2 = axes('Position', [ax_x_val(2), ax_y_val(6), ax_size_x, ax_size_y+0.025]); hold on
-    plot(xl, [0, 0], 'Color', [.6 .6 .6], 'LineStyle', '--')
-
-    offset = 0.05;
-    for pi = 1:num_participants
-        % Get indices to split arrays
-        sens_idx = contains(SQData(pi).implant_metadata.array_names, 'sensory', 'IgnoreCase', true);
-        sensory_mask = SQData(pi).implant_metadata.chan_indices(sens_idx);
-        sensory_mask = cat(2, sensory_mask{:});
-        motor_idx = contains(SQData(pi).implant_metadata.array_names, 'motor', 'IgnoreCase', true);
-        motor_mask = SQData(pi).implant_metadata.chan_indices(motor_idx);
-        motor_mask = cat(2, motor_mask{:});
-
-        % Plot SNR
-        Swarm(pi-offset, SNR_slope(sensory_mask, pi), sensory_color, 'Parent', ax1, ...
-            'Sides', 'left', 'DS', 'violin', 'SPL', 0, 'DW', .35)
-        Swarm(pi+offset, SNR_slope(motor_mask, pi), motor_color, 'Parent', ax1, ...
-            'Sides', 'right', 'DS', 'violin', 'SPL', 0, 'DW', .35)
-        % Ranksum test
-        [P,H] = ranksum(SNR_slope(sensory_mask, pi), SNR_slope(motor_mask, pi));
-        P = P * 5; % Bonferroni correction
-        if P < 0.05
-            text(pi, 1, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
-                'Parent', ax1, 'FontSize', 15)
-            fprintf('Participant %s SNR slope %s\n', subject_alt{pi}, pStr(P, 3))
-        end
-
-        % Plot Vpp
-        Swarm(pi-offset, Vpp_slope(sensory_mask, pi), sensory_color, 'Parent', ax2, ...
-            'Sides', 'left', 'DS', 'violin', 'SPL', 0, 'DW', .35)
-        Swarm(pi+offset, Vpp_slope(motor_mask, pi), motor_color, 'Parent', ax2, ...
-            'Sides', 'right', 'DS', 'violin', 'SPL', 0, 'DW', .35)
-        % Ranksum test
-        [P,H] = ranksum(Vpp_slope(sensory_mask, pi), Vpp_slope(motor_mask, pi));
-        P = P * 5; % Bonferroni correction
-        if P < 0.05
-            text(pi, 100, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
-                'Parent', ax2, 'FontSize', 15)
-            fprintf('Participant %s VPP slope %s\n', subject_alt{pi}, pStr(P,3))
-        end
-    end
-    set(ax1, 'YLim', [-1 1], ...
-             'XLim', xl, ...
-             'XTick', [1:num_participants], ...
-             'XTickLabels', ColorText(subject_alt, SubjectColors(subject_alt)))
-    ylabel(ax1, sprintf('%sSNR/year', GetUnicodeChar('Delta')), 'FontWeight', 'bold')
-
-    set(ax2, 'YLim', [-150 100], ...
-             'XLim', xl, ...
-             'XTick', [1:num_participants], ...
-             'XTickLabels', ColorText(subject_alt, SubjectColors(subject_alt)))
-    ylabel(ax2, sprintf('%sVpp (%sV/year)', GetUnicodeChar('Delta'), GetUnicodeChar('mu')), 'FontWeight', 'bold')
-
-axes('Position', [ax_x_val(3), ax_y_val(6), ax_size_x, ax_size_y+0.025]); hold on
-    plot(xl, [0, 0], 'Color', [.6 .6 .6], 'LineStyle', '--')
-    for pi = 1:num_participants
-        Swarm(pi-offset, Cln_slope(:, pi), sensory_color, ...
-            'Sides', 'both', 'DS', 'violin', 'SPL', 0, 'DW', .35)
-    end
-
-    set(gca, 'YLim', [-.25 .25], ...
-             'XLim', xl, ...
-             'XTick', [1:num_participants], ...
-             'XTickLabels', ColorText(subject_alt, SubjectColors(subject_alt)))
-    ylabel(sprintf('%sV_{inter} (V/year)', GetUnicodeChar('Delta')), 'FontWeight', 'bold')
-
 
 % Manually reduce range of P4 cleaning voltages
 h = gcf();
@@ -319,9 +224,8 @@ for i = [4:6]
                        'XTick', [0:2], ...
                        'XTickLabels', {'0', '', '2'})
 end
-h.Children(4).Children(2).MarkerEdgeAlpha = .4; % Make markers a little more obvious
 
-AddFigureLabels(h.Children([end, 3, end-1, 2, end-2, 1]), [.07, .0275])
+AddFigureLabels(h.Children([end, end-1, end-2]), [.075, .0275])
 % export_figure3x(FigurePath, 'SuppFig4_SignalQuality')
 
 shg
@@ -330,12 +234,11 @@ shg
 [ax_size_x, ax_x_val] = GetAxisCoords(3, 0.1, 0.1);
 [ax_size_y, ax_y_val] = GetAxisCoords(num_participants, 0.05, 0.05);
 % ax_y_val = flipud(ax_y_val);
-ax_y_val = ax_y_val + 0.03;
-xl = [0 1];
+ax_y_val = ax_y_val + 0.01;
 prctile_mask = [5, 95];
 
 clf;
-set(gcf, 'Units', 'Inches', 'Position', [27, 1, 6.45, 9]);
+set(gcf, 'Units', 'Inches', 'Position', [27, 1, 6.45, 8]);
 SetFont('Arial', 9)
 marker_size = 10;
 
@@ -345,7 +248,7 @@ i = 1;
 for p = 1:num_participants
     for j = 1:3
         ax(i) = axes('Position', [ax_x_val(j), ax_y_val(p), ax_size_x, ax_size_y]); hold on
-        set(ax(i), 'XScale', 'linear', 'YScale', 'linear', 'XTick', [0 1])
+        set(ax(i), 'XScale', 'linear', 'YScale', 'linear')
         i = i + 1;
     end
 end
@@ -355,8 +258,9 @@ end
     deal(NaN(1, num_participants));
 o = length(h.Children) + 1;
 for pi = 1:num_participants
-    x = rescale(total_charge(pi, :)');
-
+    x = total_charge(pi, :)';
+    xl = [0 ceil(max(x, [], 'omitnan'))];
+  
     % Get sensory mask
     sens_idx = contains(SQData(pi).implant_metadata.array_names, 'sensory', 'IgnoreCase', true);
     sensory_mask = SQData(pi).implant_metadata.chan_indices(sens_idx);
@@ -397,6 +301,12 @@ for pi = 1:num_participants
         ylabel(ax(o-3), sprintf('%sSNR/year', GetUnicodeChar('Delta')), 'FontWeight', 'bold')
         ylabel(ax(o-2), sprintf('%sVpp (%sV/year)', GetUnicodeChar('Delta'), GetUnicodeChar('mu')), 'FontWeight', 'bold')
         ylabel(ax(o-1), sprintf('%sV_{inter} (V/year)', GetUnicodeChar('Delta')), 'FontWeight', 'bold')
+
+        xl(2) = 30;
+    end
+    
+    for i = 1:3
+        set(ax(o-i), 'XLim', xl)
     end
 
     o = o - 3;
@@ -409,15 +319,18 @@ SNR_charge_rp = p_all(1,:);
 Vpp_charge_rp = p_all(2,:);
 vinter_charge_rp = p_all(3,:);
 
+xlabel(ax(2), 'Charge per Electrode (mC)', 'FontWeight', 'bold')
+
 % Add text values after correction
 h = gcf;
 o = length(h.Children) + 1;
 for i = 1:num_participants
+    title(ax(o-3), ColorText(subject_alt(i), SubjectColors(subject_alt(i))));
+
     t = sprintf('r = %0.3f\n%s', SNR_charge_r(i), pStr(SNR_charge_rp(i), 3));
     [x,y] = GetAxisPosition(ax(o-3), 100, 5);
     text(x,y,t, 'HorizontalAlignment', 'right', 'VerticalAlignment', 'bottom', 'Color', [.2 .2 .2], ...
         'Parent', ax(o-3))
-    title(ax(o-3), ColorText(subject_alt(i), SubjectColors(subject_alt(i))));
 
     t = sprintf('r = %0.3f\n%s', Vpp_charge_r(i), pStr(Vpp_charge_rp(i), 3));
     [x,y] = GetAxisPosition(ax(o-2), 100, 5);
@@ -432,9 +345,8 @@ for i = 1:num_participants
     o = o - 3;
 end
 
-xlabel(ax(2), 'Normalized Charge per Electrode', 'FontWeight', 'bold')
 AddFigureLabels(h.Children([3,2,1]), [.07, .0275])
-export_figure3x(FigurePath, 'SuppFig5_ChargeQuality')
+% export_figure3x(FigurePath, 'SuppFig5_ChargeQuality')
 
 %% Functions
 function slope = nan_regression(x, y)
