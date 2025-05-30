@@ -1,34 +1,33 @@
 % Pulse count analysis
 load(fullfile(DataPath, 'VMData_All.mat'))
-u_part = unique(data.Subject);
-u_part_alt = {'C1', 'C2', 'P2', 'P3', 'P4'};
-num_part = length(u_part);
-
-conversion_factor = 1e6; % Nano to millicoulomb
+[subject_list, ~] = GetSubjectList();
+subject_list = cellfun(@(c) c(1:5), subject_list, 'UniformOutput', false);
+[subject_list_alt, num_subjects] = GetSubjectList(true);
+conversion_factor = 1e6;
 
 %% Summary statistics
-[total_pulse_count, total_charge, total_duration] = deal(zeros(size(u_part)));
-[pulse_count_per_session, charge_per_session] = deal(cell(size(u_part)));
-[total_pulse_per_electrode, total_charge_per_electrode] = deal(zeros(num_part, 64));
-[pulse_percentiles, charge_percentiles] = deal(zeros(num_part, 3));
+[total_pulse_count, total_charge, total_duration] = deal(zeros(size(subject_list)));
+[pulse_count_per_session, charge_per_session] = deal(cell(size(subject_list)));
+[total_pulse_per_electrode, total_charge_per_electrode] = deal(zeros(num_subjects, 64));
+[pulse_percentiles, charge_percentiles] = deal(zeros(num_subjects, 3));
 
 vn = {'Stim sessions', 'Total Duration', 'Duration per session', 'Total pulses', 'Pulses per session', ...
       'Pulses per electrode', 'Total charge', 'Charge per session', 'Charge per electrode', 'Charge per phase', ...
       '# Trials', '# Single-electrode trials', '# Multi-electrode trials'};
-vt = repmat("string", num_part, 1);
-summary_table = table('Size', [length(vn), num_part], 'RowNames', vn, ...
-    'VariableNames', u_part_alt(1:num_part), 'VariableTypes', vt);
+vt = repmat("string", num_subjects, 1);
+summary_table = table('Size', [length(vn), num_subjects], 'RowNames', vn, ...
+    'VariableNames', subject_list_alt(1:num_subjects), 'VariableTypes', vt);
 
-for pi = 1:num_part
+for pi = 1:num_subjects
     % Filter participant
-    s_idx = strcmp(data.Subject, u_part(pi));
+    s_idx = strcmp(VMData.Subject, subject_list(pi));
     % Combine across session
-    total_pulses = cat(2, data.PulseCount{s_idx});
+    total_pulses = cat(2, VMData.PulseCount{s_idx});
     total_pulses(total_pulses == 0) = NaN;
-    total_current = cat(2, data.CurrentCount{s_idx});
+    total_current = cat(2, VMData.CurrentCount{s_idx});
     total_current(total_current == 0) = NaN;
     all_charge = total_current .*  0.2 ./ conversion_factor; % Convert to charge
-    all_duration = [data.Duration(s_idx)];
+    all_duration = [VMData.Duration(s_idx)];
 
     % Pulse number analysis
     total_pulse_count(pi) = sum(total_pulses, 'all', 'omitnan');
@@ -54,8 +53,8 @@ for pi = 1:num_part
     summary_table{9, pi} = {sprintf('%0.2f (%0.1f - %0.1f)', charge_percentiles(pi, [2,1,3]))};
     cpp = (total_charge_per_electrode(pi,:) ./ total_pulse_per_electrode(pi,:));
     summary_table{10, pi} = {sprintf('%0.2f (%0.1f - %0.1f)', prctile(cpp, [50, 25, 75]) .* conversion_factor)};
-    nst = sum([data.NumSingleElec(s_idx)]) / 1e3;
-    nmt = sum([data.NumMultiElec(s_idx)]) / 1e3;
+    nst = sum([VMData.NumSingleElec(s_idx)]) / 1e3;
+    nmt = sum([VMData.NumMultiElec(s_idx)]) / 1e3;
     tt = nst + nmt;
     summary_table{11, pi} = {sprintf('%0.1f', tt)};
     summary_table{12, pi} = {sprintf('%0.1f (%0.0f%%)', nst, nst / tt * 100)};
@@ -73,13 +72,13 @@ clf;
 set(gcf, 'Units', 'Inches', 'Position', [27, 1, 6.5, 8.5])
 
 % Heatmaps
-[ax_size, ax_val] = GetAxisCoords(num_part, 0.04, 0.04);
+[ax_size, ax_val] = GetAxisCoords(num_subjects, 0.04, 0.04);
 ax_val = flipud(ax_val); ax_val = ax_val + 0.01;
 xs = 0.1; xw = 0.3; yh = ax_size;
-for pi = 1:num_part
+for pi = 1:num_subjects
     % Get pulses for heatmap
-    s_idx = strcmp(data.Subject, u_part(pi));
-    total_pulses = cat(2, data.PulseCount{s_idx});
+    s_idx = strcmp(VMData.Subject, subject_list(pi));
+    total_pulses = cat(2, VMData.PulseCount{s_idx});
     total_pulses(total_pulses == 0) = NaN;
 
     % Round num sessions
@@ -94,7 +93,7 @@ for pi = 1:num_part
              'XTick', [0 ns], ...
              'CLim', [0 1e4], ...
              'Colormap', cmap)
-    title(u_part_alt{pi}, 'Color', SubjectColors(u_part{pi}))
+    title(subject_list_alt{pi}, 'Color', SubjectColors(subject_list{pi}))
     if pi == 5
         xlabel('Session Number', 'VerticalAlignment', 'bottom')
     elseif pi == 3
@@ -111,15 +110,15 @@ y.Position(1) = y.Position(1) + 1;
 
 % Electrode maps
 xs = 0.38; xw = 0.3;
-for pi = 1:num_part
+for pi = 1:num_subjects
     axes('Position', [xs ax_val(pi) xw yh], 'DataAspectRatio', [1 1 1]); hold on
     % Get pulses for per subject
-    s_idx = strcmp(data.Subject, u_part(pi));
-    total_pulses = cat(2, data.PulseCount{s_idx});
+    s_idx = strcmp(VMData.Subject, subject_list(pi));
+    total_pulses = cat(2, VMData.PulseCount{s_idx});
     total_pulses(total_pulses == 0) = NaN;
     sum_pulses = sum(total_pulses, 2, 'omitnan');
     % Get channel map
-    cm = LoadSubjectChannelMap(u_part(pi));
+    cm = LoadSubjectChannelMap(subject_list{pi});
     array_maps = cm.ChannelNumbers(find(cm.IsSensory));
     y_offset = 0;
     for a = 1:length(array_maps)
@@ -169,18 +168,18 @@ for i = 1:7
     set(ax(i), 'XLim', [.5 5.5], 'XTick', [1:5], 'XTickLabel', {})
 end
 % Add plot elements
-for pi = 1:num_part
-    Swarm(pi, total_pulse_count(pi), SubjectColors(u_part{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(1))
-    Swarm(pi, pulse_count_per_session{pi}, SubjectColors(u_part{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(2))
-    Swarm(pi, total_pulse_per_electrode(pi,:), SubjectColors(u_part{pi}), 'DS', 'Box', 'SPL', 0, 'Parent', ax(3))
-    Swarm(pi, total_charge(pi), SubjectColors(u_part{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(4))
-    Swarm(pi, charge_per_session{pi}, SubjectColors(u_part{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(5))
-    Swarm(pi, total_charge_per_electrode(pi,:), SubjectColors(u_part{pi}), 'DS', 'Box', 'SPL', 0, 'Parent', ax(6))
+for pi = 1:num_subjects
+    Swarm(pi, total_pulse_count(pi), SubjectColors(subject_list{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(1))
+    Swarm(pi, pulse_count_per_session{pi}, SubjectColors(subject_list{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(2))
+    Swarm(pi, total_pulse_per_electrode(pi,:), SubjectColors(subject_list{pi}), 'DS', 'Box', 'SPL', 0, 'Parent', ax(3))
+    Swarm(pi, total_charge(pi), SubjectColors(subject_list{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(4))
+    Swarm(pi, charge_per_session{pi}, SubjectColors(subject_list{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(5))
+    Swarm(pi, total_charge_per_electrode(pi,:), SubjectColors(subject_list{pi}), 'DS', 'Box', 'SPL', 0, 'Parent', ax(6))
     Swarm(pi, (total_charge_per_electrode(pi,:) ./ total_pulse_per_electrode(pi,:)) .* conversion_factor, ...
-        SubjectColors(u_part{pi}), 'DS', 'Box', 'SPL', 0, 'Parent', ax(7)) % Convert back to nanocoulombs
+        SubjectColors(subject_list{pi}), 'DS', 'Box', 'SPL', 0, 'Parent', ax(7)) % Convert back to nanocoulombs
 end
 % Format
-set(ax(end), 'XTickLabel', ColorText(u_part_alt, SubjectColors(u_part)))
+set(ax(end), 'XTickLabel', ColorText(subject_list_alt, SubjectColors(subject_list)))
 
 all_ax = get(gcf(), 'Children');
 

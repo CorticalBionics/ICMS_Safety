@@ -1,12 +1,13 @@
+% Code to plot Figure 2 and Supp Fig 3
 load(fullfile(DataPath, 'DetectionData.mat'))
-load(fullfile(DataPath, 'QualityData.mat'))
+load(fullfile(DataPath, 'DT_Analysis.mat'))
+load(fullfile(DataPath, 'SQ_Analysis.mat'))
+load(fullfile(DataPath, 'QualityAnalysis.mat'))
 load(fullfile(DataPath, '..', 'BCI_HistoricalSurvey', 'ProcessedData', 'SurveyDataAll'))
-PainData.P3 = load(fullfile(DataPath, 'QualityData', 'P3_pain.mat'));
-PainData.P4 = load(fullfile(DataPath, 'QualityData', 'P4_pain.mat'));
 
-subjects = {'BCI02', 'BCI03', 'CRS02b', 'CRS07', 'CRS08'};
-subjects_alt = {'C1', 'C2', 'P2', 'P3', 'P4'};
-num_subjects = length(subjects_alt);
+[subject_list, ~] = GetSubjectList();
+% subject_list = cellfun(@(c) c(1:5), subject_list, 'UniformOutput', false);
+[subject_list_alt, num_subjects] = GetSubjectList(true);
 num_channels = 64;
 t_max = 80; % Threshold over which to assume disabled
 
@@ -18,269 +19,7 @@ palm_thick = uint8(repmat(~palm_thick,[1,1,3])) .* 255;
 % All pixels included in the palmar mask used, just don't want to add the dependencies to calculate this
 total_palm_pixels = 410624;
 
-%% Detection threshold summary statistics
-for s = 1:num_subjects
-    % Count total detection threshold measurements
-    ndt = cellfun(@length, {DetectionData{s}.Threshold});
-    fprintf('\n%s:\n', subjects_alt{s})
-    fprintf('Total DTs: %d\n', sum(ndt));
-    fprintf('Per electrode median (range): %1.0f (%1.0f-%1.0f)\n', prctile(ndt, [50, 25, 75]));
-end
 
-%% ANOVA on ddt/day slopes
-[slopes_all, g1, g2] = deal(cell(length(DetectionData), 1));
-for s = 1:length(DetectionData)
-    y = [DetectionData{s}.ThresholdDateLinReg];
-    slopes_all{s} = y(1:2:end)'; % Alternates between slope and offest
-    g1{s} = repelem(s, length(slopes_all{s}), 1);
-    fprintf('%s mean DT slope = %0.2f\n', subjects_alt{s}, median(slopes_all{s}, 'omitnan') .* 365)
-end
-fprintf('Grand mean DT slope = %0.2f\n', mean(cat(1, slopes_all{:}), 'omitnan') * 365)
-anova_tab = anovan(cat(1, slopes_all{:}), cat(1, g1{:}));
-
-%% SNR/VPP/Cleaning Slopes
-num_arrays = 2;
-flist = dir(fullfile(DataPath, 'SignalQuality', '*.mat'));
-
-SQData = cell(num_subjects, 1);
-% Load SQData and process VM data
-implant_dates = NaT(num_subjects, 1);
-for pi = 1:num_subjects
-    % Load SQ Data
-    SQData{pi} = load(fullfile(DataPath, 'SignalQuality', flist(pi).name));
-    SQData{pi}.participant = flist(pi).name(1:5);
-    implant_dates(pi) = datetime(SQData{pi}.implant_metadata.implant_date, 'Format', 'dd-MMM-uuuu');
-end
-SQData = cat(1, SQData{:});
-
-% Load cleaning data
-load(fullfile(DataPath, 'CleaningData'));
-% Remove data from before 14-Aug-2017 (different monitoring system)
-min_date = datetime(736920, 'ConvertFrom', 'datenum');
-for p = 1:num_subjects
-    idx = [cleaning_data{p}.date] > min_date;
-    cleaning_data{p} = cleaning_data{p}(idx);
-end
-
-%%
-[SNR_slope, Vpp_slope] = deal(NaN(256, num_subjects));
-Cln_slope = NaN(64, num_subjects);
-
-for pi = 1:num_subjects
-    % Get sensory and motor masks
-    sens_idx = contains(SQData(pi).implant_metadata.array_names, 'sensory', 'IgnoreCase', true);
-    sensory_mask = SQData(pi).implant_metadata.chan_indices(sens_idx);
-    sensory_mask = cat(2, sensory_mask{:});
-    motor_idx = contains(SQData(pi).implant_metadata.array_names, 'motor', 'IgnoreCase', true);
-    motor_mask = SQData(pi).implant_metadata.chan_indices(motor_idx);
-    motor_mask = cat(2, motor_mask{:});
-
-
-    % SNR
-    x = datetime(num2str(SQData(pi).session_dates'), 'Format', 'yyyyMMdd');
-    x = years(x - x(1));
-    y = cat(1, SQData(pi).signal_quality_analysis.ch_snr);
-    y_snr = 10.^(y./20); % Undo log scaling
-    % Vpp
-    y_vpp = cat(1, SQData(pi).signal_quality_analysis.ch_vpp);
-
-    for c = 1:256
-        SNR_slope(c, pi) = nan_regression(x, y_snr(:,c));
-        Vpp_slope(c, pi) = nan_regression(x, y_vpp(:,c));
-    end    
-    %%% Cleaning
-    idx = cellfun(@(c) ~isempty(c), {cleaning_data{pi}.vmin});
-    x = [cleaning_data{pi}(idx).date];
-    x = years(x - x(1));
-    y = cat(2, [cleaning_data{pi}(idx).vinter]);
-    y(y < -1.5) = NaN; % Disconnected channels
-    for c = 1:64
-        Cln_slope(c, pi) = nan_regression(x, y(c,:));
-    end
-end
-
-%% Analyze detection thresholds
-dw = 250; % Bin width in days
-subj_max_days = zeros(size(DetectionData));
-for i = 1:length(DetectionData)
-    subj_max_days(i) = max(cellfun(@max, {DetectionData{i}.DateFromImplant}));
-end
-max_days = ceil(max(subj_max_days)/ dw) * dw; % Max days
-de = 0 : dw : max_days; % Day edges
-dx = de(1:end-1) + (dw/2); % Day center
-term_idx = zeros(length(subjects), 1);
-
-[discretized_thresholds, disabled_electrodes] = deal(cell(length(subjects_alt), 1));
-for s = 1:num_subjects
-    % Format data
-    % num_channels = size(DetectionData{s}, 2);
-    % Date, threshold, channel
-    [d, t] = deal(cell(num_channels, 1));
-    enabled_channels = NaN(num_channels, length(dx));
-    for i = 1:num_channels
-        ch_idx = find([DetectionData{s}.Channel] == i);
-        if isempty(ch_idx) % Skip untested channels
-            continue
-        end
-        d{i} = DetectionData{s}(ch_idx).DateFromImplant;
-        t{i} = DetectionData{s}(ch_idx).Threshold;
-        
-        % Find threshold for each bin
-        for j = 1:length(dx)
-            if dx(j) > subj_max_days(s)
-                break
-            end
-            idx = d{i} > de(j) & d{i} <= de(j+1);
-            % If no thresholds, assume disabled
-            if sum(idx) == 0
-                enabled_channels(i,j) = NaN;
-            elseif median(t{i}(idx)) > t_max
-                enabled_channels(i,j) = 0;
-            else
-                enabled_channels(i,j) = 1;
-            end
-        end
-    end
-    
-    % Fill missing values if a threshold was missed
-    enabled_channels = fillmissing(enabled_channels, "linear", 2, "MaxGap", 3);
-    enabled_channels(isnan(enabled_channels)) = 0;
-    enabled_channels = enabled_channels == 1;
-    disabled_electrodes{s} = enabled_channels;
-    % Remove trailing 0s
-    term_idx(s) = find(mean(enabled_channels, 1) > 0.1, 1, 'last'); % Haven't tested enough electrodes to know...
-
-    % Vectorize
-    d = cat(2, d{:});
-    t = round(cat(2, t{:}));
-
-    % Sort and find time to first sensation
-    [~, sort_idx] = sort(d);
-    d = d(sort_idx);
-    t = t(sort_idx);
-    ttfs_idx = find(~isnan(t) & ~isinf(t) & t < t_max, 1, 'first');
-    fprintf('%s\n', subjects_alt{s})
-    fprintf('\tTime to first sensation: %d\n', d(ttfs_idx))
-    
-    % Discretize
-    dv = cell(size(dx)); % Thresholds in each bin
-    for i = 1:length(dx)
-        idx = d > de(i) & d <= de(i+1);
-        if sum(idx) < 5 % Only add to bin if at least 5 observations
-            continue
-        end
-        dv{i} = t(idx);
-        dv{i}(isinf(dv{i})) = NaN;
-    end
-    discretized_thresholds{s} = dv;
-
-    % Print medial starting threshold for each participant
-    fprintf('\tMedian starting DT: %0.1f\n', median(discretized_thresholds{s}{1}, 'omitnan'))
-end
-
-%% Analyze quality data
-% Count the number of unique surveys
-unique_surveys = zeros(num_subjects, 1);
-for i = 1:num_subjects
-    nu = zeros(num_channels, 1);
-    for c = 1:num_channels
-        nu(c) = sum(QualityData(i).Responses.channel == c);
-    end
-    unique_surveys(i) = mode(nu);
-end
-
-num_perms = 1e1;
-% Discretize and compute naturalness and quality frequency per year
-for i = 1:num_subjects
-    % Discretize to years
-    % Get implant date
-    if startsWith(subjects{i}, 'BCI')
-        subj_config = cc.load_config.participant(subjects{i}, 'chicago');
-    else
-        subj_config = cc.load_config.participant(subjects{i}, 'pitt');
-    end
-    implant_date = datetime(subj_config.implant_date, "InputFormat", "uuuu-MM-dd");
-
-    y = years(QualityData(i).Responses.Date - implant_date);
-    y_max = ceil(max(y));
-    % Filter for any responses
-    any_resp = any(QualityData(i).Responses{:,3:end} > 0, 2);
-    
-    % Compute naturalness for each year across channels
-    nat_mat = NaN(y_max+1, num_channels);
-    for c = 1:num_channels
-        c_idx = QualityData(i).Responses.channel == c;
-        for j = 1:y_max
-            y_idx = (j-1 < y) & (y < j);
-            nat_mat(j,c) = mean(QualityData(i).Responses.Naturalness(y_idx & c_idx & any_resp), 'omitnan');
-        end
-    end
-    QualityData(i).Naturalness = nat_mat; %#ok<*SAGROW>
-
-    % Compute quality frequency in each year
-    resp_mat = QualityData(i).Responses{:, [6:end]};
-    qual_mat = NaN(y_max, size(resp_mat, 2), num_channels); % year by 'distinct' quality by electrode
-    for c = 1:num_channels
-        c_idx = QualityData(i).Responses.channel == c;
-        for j = 1:y_max
-            y_idx = (j-1 < y) & (y < j);
-            qual_mat(j, :, c) = mean(resp_mat(y_idx & c_idx & any_resp, :) > 0, 1) > 0.3;
-        end
-    end
-    qual_mat = mean(qual_mat, 3, 'omitnan'); % Proportion of electrodes for each quality
-    QualityData(i).Frequency = qual_mat ./ sum(qual_mat, 2); % Normalize within year
-
-    % Permutations for quality stability
-    qual_corr_mat = NaN(num_channels, y_max);
-    qual_corr_mat_null = NaN(num_channels, y_max, num_perms);
-    for c = 1:num_channels
-        c_idx = QualityData(i).Responses.channel == c;
-        x = QualityData(i).Responses.Date(c_idx & any_resp);
-        y = QualityData(i).Responses{c_idx & any_resp, [6:end]}';
-        % Filter out never observed qualities
-        filt_idx = ~any(y > 0, 2);
-        y = y(~filt_idx, :);
-
-        if isempty(y)
-            continue
-        end
-        
-        % Pairwise distance & correlation
-        mask = tril(true(length(x)), -1);
-        dxp = squareform(pdist(datenum(x))); %#ok<DATNM>
-        r = corr(y, 'Rows', 'pairwise');
-
-        % Shuffle and correlate
-        temp_perm_r = cell(num_perms, 1);
-        for p = 1:num_perms
-            y_perm = y;
-            for j = 1:size(y, 2)
-                y_perm(:,j) = y_perm(randperm(size(y, 1)), j);
-            end
-            pr = corr(y_perm, 'Rows', 'pairwise');
-            temp_perm_r{p} = pr(mask);
-        end
-        
-        % Combine within channel/year
-        dy = dxp(mask) ./ 365;
-        r = r(mask);
-        for j = 1:y_max
-            idx = dy < j & dy > j - 1;
-            if sum(idx) < 10 % Only take average of high N
-                continue
-            end
-            qual_corr_mat(c,j) = mean(r(idx), 'omitnan');
-            for p = 1:num_perms
-                qual_corr_mat_null(c,j,p) = mean(temp_perm_r{p}(idx), 'omitnan');
-            end
-        end
-    end
-
-    QualityData(i).StabilityCorrelation.corr = qual_corr_mat;
-    QualityData(i).StabilityCorrelation.null = qual_corr_mat_null;
-end
-
-return
 %% Figure 2
 SetFont('Arial', 9)
 clf;
@@ -299,8 +38,8 @@ set(gcf, 'Units', 'Inches', 'Position', [30 1 6.4 6.5])
 ax(1) = axes('Position', [ax_xs(1), ax_ys(3), ax_w, ax_h]); hold on
 % axes('Position', [.1 .2 .35 .7]); hold on    
     for s = 1:num_subjects
-        AlphaLine(dx ./ 365, discretized_thresholds{s}, SubjectColors(subjects_alt{s}), ...
-            'LineWidth', 2, 'IgnoreNan', 1)
+        AlphaLine(DetectionAnalysis.x ./ 365, DetectionAnalysis.discretized_thresholds{s}, ...
+            SubjectColors(subject_list_alt{s}), 'LineWidth', 2, 'IgnoreNan', 1)
     end
     
     % Format
@@ -315,7 +54,7 @@ ax(1) = axes('Position', [ax_xs(1), ax_ys(3), ax_w, ax_h]); hold on
                  'XScale', 'linear')
     end
     
-    ct = ColorText(subjects_alt, SubjectColors(subjects_alt));
+    ct = ColorText(subject_list_alt, SubjectColors(subject_list_alt));
     text(10, 100, join(ct, '  '), ...
         'HorizontalAlignment', 'right', 'VerticalAlignment', 'top')
     
@@ -329,11 +68,11 @@ ax(2) = axes('Position', [ax_xs(2), ax_ys(3), ax_w, ax_h]); hold on
     for s = 1:num_subjects-1
         y = [DetectionData{s}.ThresholdDateLinReg];
         y = y(1:2:end);
-        Swarm(s, y .* 365, SubjectColors(subjects_alt{s}), 'DistributionWidth', .35, 'DS', 'Box', 'SPL', 0)
+        Swarm(s, y .* 365, SubjectColors(subject_list_alt{s}), 'DistributionWidth', .35, 'DS', 'Box', 'SPL', 0)
     end
     set(gca, 'Ylim', [-30 70], ...
              'XTick', [1:5], ...
-             'XTickLabel', ColorText(subjects_alt, SubjectColors(subjects_alt)), ...
+             'XTickLabel', ColorText(subject_list_alt, SubjectColors(subject_list_alt)), ...
              'XLim', [.5 5.5], ...
              'YTick', [-30:30:60])
     ylabel(sprintf('%sDT (%sA/year)', GetUnicodeChar('Delta'), GetUnicodeChar('mu')))
@@ -342,8 +81,9 @@ ax(2) = axes('Position', [ax_xs(2), ax_ys(3), ax_w, ax_h]); hold on
 % Functional electrodes
 ax(3) = axes('Position', [ax_xs(3), ax_ys(3), ax_w, ax_h]); hold on
     for s = 1:num_subjects
-        plot(dx(1:term_idx(s)) ./ 365, mean(disabled_electrodes{s}(:,1:term_idx(s)), 1, 'omitmissing'), ...
-            'Color', SubjectColors(subjects_alt{s}), 'LineWidth', 2)
+        plot(DetectionAnalysis.x(1:DetectionAnalysis.term_idx(s)) ./ 365, ...
+            mean(DetectionAnalysis.disabled_electrodes{s}(:,1:DetectionAnalysis.term_idx(s)), 1, 'omitmissing'), ...
+            'Color', SubjectColors(subject_list_alt{s}), 'LineWidth', 2)
     end
     ylabel('p(Functional Electrodes)')
     xlabel('Years from Implant')
@@ -352,30 +92,30 @@ ax(3) = axes('Position', [ax_xs(3), ax_ys(3), ax_w, ax_h]); hold on
 % P2 Timepoint 1
     p = [0.025, ax_ys(2)+ax_h/2 0.15, ax_h / 2];
     s = 3; t = 1;
-    mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
+    mini_hand_map(palm_thick, SurveyData, DetectionAnalysis.disabled_electrodes, subject_list, p, s, t)
     title('Year 1')
 
 % P2 Timepoint 2
     p = [0.165, ax_ys(2)+ax_h/2, 0.15, ax_h / 2];
-    s = 3; t = floor(length(dx) / 2);
-    mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
+    s = 3; t = floor(length(DetectionAnalysis.x) / 2);
+    mini_hand_map(palm_thick, SurveyData, DetectionAnalysis.disabled_electrodes, subject_list, p, s, t)
     title('Year 5')
 
 % P2 Timepoint 3
     p = [0.305, ax_ys(2)+ax_h/2, 0.15, ax_h / 2];
-    s = 3; t = length(dx);
-    mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
+    s = 3; t = length(DetectionAnalysis.x);
+    mini_hand_map(palm_thick, SurveyData, DetectionAnalysis.disabled_electrodes, subject_list, p, s, t)
     title('Year 10')
 
 % C1 Timepoint 1
     p = [0.025, ax_ys(2)-ax_h/10, 0.15, ax_h / 2];
     s = 1; t = 1;
-    mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
+    mini_hand_map(palm_thick, SurveyData, DetectionAnalysis.disabled_electrodes, subject_list, p, s, t)
 
 % C1 Timepoint 2
     p = [0.165, ax_ys(2)-ax_h/10, 0.15, ax_h / 2];
-    s = 1; t = floor(length(dx) / 2) - 1;
-    mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
+    s = 1; t = floor(length(DetectionAnalysis.x) / 2) - 1;
+    mini_hand_map(palm_thick, SurveyData, DetectionAnalysis.disabled_electrodes, subject_list, p, s, t)
 
 
 % Quality frequency bar charts
@@ -454,64 +194,60 @@ ax2 = axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
     offset = 0.05;
     for pi = 1:num_subjects
         % Get indices to split arrays
-        sens_idx = contains(SQData(pi).implant_metadata.array_names, 'sensory', 'IgnoreCase', true);
-        sensory_mask = SQData(pi).implant_metadata.chan_indices(sens_idx);
-        sensory_mask = cat(2, sensory_mask{:});
-        motor_idx = contains(SQData(pi).implant_metadata.array_names, 'motor', 'IgnoreCase', true);
-        motor_mask = SQData(pi).implant_metadata.chan_indices(motor_idx);
-        motor_mask = cat(2, motor_mask{:});
+        sensory_mask = SQAnalysis.sensory_masks{pi};
+        motor_mask = SQAnalysis.motor_masks{pi};
 
         % Plot SNR
-        Swarm(pi-offset, SNR_slope(sensory_mask, pi), sensory_color, 'Parent', ax1, ...
+        Swarm(pi-offset, SQAnalysis.SNR_slope(sensory_mask, pi), sensory_color, 'Parent', ax1, ...
             'Sides', 'left', 'DS', 'violin', 'SPL', 0, 'DW', .35)
-        Swarm(pi+offset, SNR_slope(motor_mask, pi), motor_color, 'Parent', ax1, ...
+        Swarm(pi+offset, SQAnalysis.SNR_slope(motor_mask, pi), motor_color, 'Parent', ax1, ...
             'Sides', 'right', 'DS', 'violin', 'SPL', 0, 'DW', .35)
         % Ranksum test
-        [P,H] = ranksum(SNR_slope(sensory_mask, pi), SNR_slope(motor_mask, pi));
+        [P,H] = ranksum(SQAnalysis.SNR_slope(sensory_mask, pi), SQAnalysis.SNR_slope(motor_mask, pi));
         P = P * 5; % Bonferroni correction
         if P < 0.05
             text(pi, 1, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
                 'Parent', ax1, 'FontSize', 15)
-            fprintf('Participant %s SNR slope %s\n', subjects_alt{pi}, pStr(P, 3))
+            fprintf('Participant %s SNR slope %s\n', subject_list_alt{pi}, pStr(P, 3))
         end
 
         % Plot Vpp
-        Swarm(pi-offset, Vpp_slope(sensory_mask, pi), sensory_color, 'Parent', ax2, ...
+        Swarm(pi-offset, SQAnalysis.Vpp_slope(sensory_mask, pi), sensory_color, 'Parent', ax2, ...
             'Sides', 'left', 'DS', 'violin', 'SPL', 0, 'DW', .35)
-        Swarm(pi+offset, Vpp_slope(motor_mask, pi), motor_color, 'Parent', ax2, ...
+        Swarm(pi+offset, SQAnalysis.Vpp_slope(motor_mask, pi), motor_color, 'Parent', ax2, ...
             'Sides', 'right', 'DS', 'violin', 'SPL', 0, 'DW', .35)
         % Ranksum test
-        [P,H] = ranksum(Vpp_slope(sensory_mask, pi), Vpp_slope(motor_mask, pi));
+        [P,H] = ranksum(SQAnalysis.Vpp_slope(sensory_mask, pi), SQAnalysis.Vpp_slope(motor_mask, pi));
         P = P * 5; % Bonferroni correction
         if P < 0.05
             text(pi, 100, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
                 'Parent', ax2, 'FontSize', 15)
-            fprintf('Participant %s VPP slope %s\n', subjects_alt{pi}, pStr(P,3))
+            fprintf('Participant %s VPP slope %s\n', subject_list_alt{pi}, pStr(P,3))
         end
     end
     set(ax1, 'YLim', [-1 1], ...
              'XLim', xl, ...
              'XTick', [1:num_subjects], ...
-             'XTickLabels', ColorText(subjects_alt, SubjectColors(subjects_alt)))
+             'XTickLabels', ColorText(subject_list_alt, SubjectColors(subject_list_alt)))
     ylabel(ax1, sprintf('%sSNR/year', GetUnicodeChar('Delta')), 'FontWeight', 'bold')
 
     set(ax2, 'YLim', [-150 100], ...
              'XLim', xl, ...
              'XTick', [1:num_subjects], ...
-             'XTickLabels', ColorText(subjects_alt, SubjectColors(subjects_alt)))
+             'XTickLabels', ColorText(subject_list_alt, SubjectColors(subject_list_alt)))
     ylabel(ax2, sprintf('%sVpp (%sV/year)', GetUnicodeChar('Delta'), GetUnicodeChar('mu')), 'FontWeight', 'bold')
 
 axes('Position', [ax_xs(3), ax_ys(1), ax_w, ax_h]); hold on
     plot(xl, [0, 0], 'Color', [.6 .6 .6], 'LineStyle', '--')
     for pi = 1:num_subjects
-        Swarm(pi-offset, Cln_slope(:, pi), sensory_color, ...
+        Swarm(pi-offset, SQAnalysis.Cln_slope(:, pi), sensory_color, ...
             'Sides', 'both', 'DS', 'violin', 'SPL', 0, 'DW', .35)
     end
 
     set(gca, 'YLim', [-.25 .25], ...
              'XLim', xl, ...
              'XTick', [1:num_subjects], ...
-             'XTickLabels', ColorText(subjects_alt, SubjectColors(subjects_alt)))
+             'XTickLabels', ColorText(subject_list_alt, SubjectColors(subject_list_alt)))
     ylabel(sprintf('%sV_{inter} (V/year)', GetUnicodeChar('Delta')), 'FontWeight', 'bold')
     shg
 
@@ -544,63 +280,45 @@ return
 [ax_w, ax_xs] = GetAxisCoords(3, .1, .075);
 [ax_h, ax_ys] = GetAxisCoords(2, .1, .1); ax_ys(2) = ax_ys(2) + .05;
 
-xticks1 = [0:10];
-xticklabels1 = cell(size(xticks1));
-for x = 1:length(xticks1)
-    if x == 1
-        xticklabels1{x} = num2str(xticks1(x));
-    elseif x == length(xticks1)
-        xticklabels1{x} = num2str(xticks1(x));
-    else
-        xticklabels1{x} = '';
-    end
-end
+xt10 = [0:10];
+xtl10 = sparse_xticklabels(xt10);
 
-xticks = [0:8];
-xticklabels = cell(size(xticks));
-for x = 1:length(xticks)
-    if x == 1
-        xticklabels{x} = num2str(xticks(x));
-    elseif x == length(xticks)
-        xticklabels{x} = num2str(xticks(x));
-    else
-        xticklabels{x} = '';
-    end
-end
+xt8 = [0:8];
+xtl8 = sparse_xticklabels(xt8);
 
 clf; 
 set(gcf, 'Units', 'Inches', 'Position', [30 1 6.4 4])
 % Number of surveys
 axes('Position', [ax_xs(1), ax_ys(2), ax_w, ax_h]); hold on
     for s = 1:num_subjects
-        Swarm(s, unique_surveys(s), 'DS', 'Bar', 'SPL', 0, 'Color', SubjectColors(subjects_alt{s}))
+        Swarm(s, unique_surveys(s), 'DS', 'Bar', 'SPL', 0, 'Color', SubjectColors(subject_list_alt{s}))
     end
 
     set(gca, 'XLim', [.5 5.5], ...
              'XTick', [1:5], ...
-             'XTickLabel', ColorText(subjects_alt, SubjectColors(subjects_alt)), ...
+             'XTickLabel', ColorText(subject_list_alt, SubjectColors(subject_list_alt)), ...
              'YLim', [0 70])
     ylabel('# Surveys')
 
 % Relative coverage
 axes('Position', [ax_xs(2), ax_ys(2), ax_w, ax_h]); hold on
     for s = 1:num_subjects
-        prop_hand = zeros(term_idx(s), 1);
-        for t = 1:term_idx(s)
-            enabled_idx = disabled_electrodes{s}(:,t) == 1;
+        prop_hand = zeros(DetectionAnalysis.term_idx(s), 1);
+        for t = 1:DetectionAnalysis.term_idx(s)
+            enabled_idx = DetectionAnalysis.disabled_electrodes{s}(:,t) == 1;
             idx_all = cat(1, SurveyData{s}(1, enabled_idx).PFM_TIdx);
             nidx = unique(idx_all);
             prop_hand(t) = length(nidx) / total_palm_pixels;
         end
         prop_hand = prop_hand ./ max(prop_hand);
-        plot(dx(1:term_idx(s)) ./ 365, prop_hand, 'Color', SubjectColors(subjects_alt{s}), ...
-        'LineWidth', 2);
+        plot(DetectionAnalysis.x(1:DetectionAnalysis.term_idx(s)) ./ 365, prop_hand, ...
+            'Color', SubjectColors(subject_list_alt{s}), 'LineWidth', 2);
     end
     
     ylabel('Relative Coverage')
     xlabel('Years from Implant')
-    set(gca, 'XTick', xticks1, ...
-             'XTickLabel', xticklabels1, ...
+    set(gca, 'XTick', xt10, ...
+             'XTickLabel', xtl10, ...
              'XTickLabelRotation', 0, ...
              'YLim', [0.5 1])
 
@@ -608,9 +326,9 @@ axes('Position', [ax_xs(2), ax_ys(2), ax_w, ax_h]); hold on
 axes('Position', [ax_xs(3), ax_ys(2), ax_w, ax_h]); hold on
 for p = [1,3,4] % Other participants don't have enough sessions to plot
     xl = 1:size(QualityData(p).StabilityCorrelation.corr,2);
-    AlphaLine(xl - .5, QualityData(p).StabilityCorrelation.corr, SubjectColors(subjects_alt{p}), ...
+    AlphaLine(xl - .5, QualityData(p).StabilityCorrelation.corr, SubjectColors(subject_list_alt{p}), ...
         'ErrorType', 'Percentiles', 'LineWidth', 2)
-    AlphaLine(xl - .5, mean(QualityData(p).StabilityCorrelation.null, 3, 'omitnan'), SubjectColors(subjects_alt{p}), ...
+    AlphaLine(xl - .5, mean(QualityData(p).StabilityCorrelation.null, 3, 'omitnan'), SubjectColors(subject_list_alt{p}), ...
         'ErrorType', 'Percentiles', 'LineStyle', '--')
 end
 
@@ -618,9 +336,9 @@ text(8.25, 0, {'- -'; 'Shuffle'}, 'VerticalAlignment', 'middle', 'HorizontalAlig
 
 ylabel("Correlation (r)")
 xlabel('Time between Surveys (years)')
-set(gca, 'XLim', [0, max(xticks)], ...
-         'XTick', xticks, ...
-         'XTickLabel', xticklabels, ...
+set(gca, 'XLim', [0, max(xt8)], ...
+         'XTick', xt8, ...
+         'XTickLabel', xtl8, ...
          'XTickLabelRotation', 0)
 
 
@@ -630,16 +348,16 @@ axes('Position', [ax_xs(1), ax_ys(1), ax_w, ax_h]); hold on
         x = [1:size(QualityData(s).Naturalness, 1)] - .5;
         y = QualityData(s).Naturalness;
         AlphaLine(x, y, ...
-            SubjectColors(subjects_alt{s}), 'LineWidth', 2)
+            SubjectColors(subject_list_alt{s}), 'LineWidth', 2)
     end
 
     set(gca, 'XLim', [0 10], ...
              'XTick', [0:10], ...
              'YLim', [0 10])
     ylabel('Naturalness')
-    xlabel('Years from Implant')
-    set(gca, 'XTick', xticks1, ...
-             'XTickLabel', xticklabels1, ...
+    xlabel('Years from Implant', 'VerticalAlignment', 'middle')
+    set(gca, 'XTick', xt10, ...
+             'XTickLabel', xtl10, ...
              'XTickLabelRotation', 0)
 
 % Pain frequency
@@ -650,12 +368,12 @@ axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
         % Divided by number times any report was given
         any_resp = sum(sum(QualityData(s).Responses{:,3:end} > 0, 2) > 0);
         Swarm(s, pain_resp / any_resp * 100 ,...
-            'DS', 'Bar', 'SPL', 0, 'Color', SubjectColors(subjects_alt{s}))
+            'DS', 'Bar', 'SPL', 0, 'Color', SubjectColors(subject_list_alt{s}))
     end
 
     set(gca, 'XLim', [.5 5.5], ...
              'XTick', [1:5], ...
-             'XTickLabel', ColorText(subjects_alt, SubjectColors(subjects_alt)), ...
+             'XTickLabel', ColorText(subject_list_alt, SubjectColors(subject_list_alt)), ...
              'YLim', [0 100])
     ylabel('Pain Reported (%)')
 

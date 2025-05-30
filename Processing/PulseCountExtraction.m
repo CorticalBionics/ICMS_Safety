@@ -131,6 +131,18 @@ for f = 1:length(flist)
     end
 end
 
-data = cat(1, data{:});
+subject_ids = cellfun(@(c) c(1:5), subject_ids, 'UniformOutput', false);
 
-save(fullfile(DataPath, 'VMData_All'), "data")
+% Export
+VMData = cat(1, data{:});
+total_charge = zeros(length(subject_ids), 64);
+conversion_factor = 1e6;
+% Filter VM data by participant
+for pi = 1:length(subject_ids)
+    s_idx = strcmp(data.Subject, subject_ids(pi));
+    total_current = cat(2, data.CurrentCount{s_idx});
+    all_charge = total_current .*  0.2 ./ conversion_factor; % Convert to charge in mC
+    total_charge(pi, :) = sum(all_charge, 2, 'omitnan');
+end
+
+save(fullfile(DataPath, 'VMData_All'), "VMData", "total_charge")
