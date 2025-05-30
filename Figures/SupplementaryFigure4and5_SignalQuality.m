@@ -119,7 +119,6 @@ shg
 [ax_size_y, ax_y_val] = GetAxisCoords(num_participants, 0.05, 0.05);
 % ax_y_val = flipud(ax_y_val);
 ax_y_val = ax_y_val + 0.01;
-prctile_mask = [5, 95];
 
 clf;
 set(gcf, 'Units', 'Inches', 'Position', [27, 1, 6.45, 8]);
@@ -138,8 +137,7 @@ for p = 1:num_participants
 end
 
 % Correlate SNR/VPP/Cleaning with VMData on sensory arrays
-[SNR_charge_r, SNR_charge_rp, Vpp_charge_r, Vpp_charge_rp, vinter_charge_r, vinter_charge_rp] = ...
-    deal(NaN(1, num_participants));
+
 o = length(h.Children) + 1;
 for pi = 1:num_participants
     x = total_charge(pi, :)';

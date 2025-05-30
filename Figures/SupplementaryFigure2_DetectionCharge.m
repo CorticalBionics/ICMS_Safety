@@ -1,26 +1,8 @@
 load(fullfile(DataPath, 'DetectionData.mat'))
 load(fullfile(DataPath, 'VMData_All.mat')); 
-VMData = data;
-clearvars data
 
-u_part = unique(VMData.Subject);
-subjects = {'C1', 'C2', 'P2', 'P3', 'P4'};
-num_subjects = length(subjects);
+[subject_list, num_subjects] = GetSubjectList(true);
 num_channels = 64;
-
-%% VM analysis
-conversion_factor = 1e6;
-total_charge = zeros(length(u_part), num_channels);
-for pi = 1:length(u_part)
-    % Filter participant
-    s_idx = strcmp(VMData.Subject, u_part(pi));
-    total_current = cat(2, VMData.CurrentCount{s_idx});
-    total_current(total_current == 0) = NaN;
-    all_charge = total_current .*  0.2 ./ conversion_factor; % Convert to charge in mC
-
-    % Charge across time
-    total_charge(pi, :) = sum(all_charge, 2, 'omitnan');
-end
 
 %% Supplementary Figure 2
 cmap = ColorGradient([1 1 1], rgb(21, 101, 192));
@@ -102,7 +84,7 @@ for s = 1:num_subjects
              'XTick', xt, ...
              'XTickLabel', xtl, ...
              'XTickLabelRotation', 0)
-    title(subjects{s}, 'Color', SubjectColors(subjects{s}))
+    title(subject_list{s}, 'Color', SubjectColors(subject_list{s}))
     if s == 5
         xlabel('Years post Implant', 'VerticalAlignment', 'top')
     elseif s == 3
@@ -142,8 +124,8 @@ for s = 1:num_subjects
     f = fit(x_trim, y_trim, 'exp1');
 
     % Plot
-    scatter(x_trim, y_trim, 30, SubjectColors(u_part{s}), 'filled', 'MarkerFaceAlpha', .2)
-    plot(xq, feval(f, xq), 'Color', SubjectColors(u_part{s}), 'LineStyle', '-','LineWidth', 2)
+    scatter(x_trim, y_trim, 30, SubjectColors(subject_list{s}), 'filled', 'MarkerFaceAlpha', .2)
+    plot(xq, feval(f, xq), 'Color', SubjectColors(subject_list{s}), 'LineStyle', '-','LineWidth', 2)
     [corr_coeffs(s,1), corr_coeffs_p(s,1)] = corr(x,y, 'Rows', 'complete', 'Type', 'Kendall');
 
     if s == 5
@@ -185,7 +167,7 @@ for s = 1:num_subjects-1
     % Remove nans/infs
     idx = ~isnan(y) & ~isinf(y);
     x_trim = x(idx); y_trim = y(idx);
-    scatter(x_trim, y_trim, 30, SubjectColors(u_part{s}), 'filled', 'MarkerFaceAlpha', .2)
+    scatter(x_trim, y_trim, 30, SubjectColors(subject_list{s}), 'filled', 'MarkerFaceAlpha', .2)
 
     % Format
     if s == 4
@@ -205,7 +187,7 @@ for s = 1:num_subjects-1
     xq = linspace(0, ceil(prctile(x_trim, 95)));
     % Exponential curve fit
     f = fit(x_trim, y_trim, 'exp1');
-    plot(xq, feval(f, xq), 'Color', SubjectColors(u_part{s}), 'LineStyle', '-','LineWidth', 2)
+    plot(xq, feval(f, xq), 'Color', SubjectColors(subject_list{s}), 'LineStyle', '-','LineWidth', 2)
     [corr_coeffs(s,1), corr_coeffs_p(s,1)] = corr(x, y, 'Rows', 'complete', 'Type', 'Spearman');
     
     

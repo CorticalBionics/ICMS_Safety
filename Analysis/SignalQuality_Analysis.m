@@ -1,60 +1,53 @@
 %%% Signal quality analysis
-subjects = {'BCI02', 'BCI03', 'CRS02', 'CRS07', 'CRS08'};
-num_participants = length(subjects);
-% Load SQ, VM, and Cleaning Data
+[subject_list, num_subjects] = GetSubjectList();
+
+% Load VM Data
+load(fullfile(DataPath, "VMData_All.mat"));
+
 % Get list of SQ data
 flist = dir(fullfile(DataPath, 'SignalQuality', '*.mat'));
-SQData = cell(num_participants, 1);
-
-% Load voltage data
-load(fullfile(DataPath, "VMData_All.mat"));
-VMData = data;
-conversion_factor = 1e6;
-total_charge = zeros(length(subjects), 64);
+SQData = cell(num_subjects, 1);
 
 % Load cleaning data
 load(fullfile(DataPath, 'CleaningData'));
 % Remove data from before 14-Aug-2017 (different monitoring system)
 min_date = datetime(736920, 'ConvertFrom', 'datenum');
-for p = 1:num_participants
+for p = 1:num_subjects
     idx = [cleaning_data{p}.date] > min_date;
     cleaning_data{p} = cleaning_data{p}(idx); %#ok<SAGROW>
 end
 
 % Load SQData and process VM data
-implant_dates = NaT(num_participants, 1);
-for pi = 1:num_participants
+implant_dates = NaT(num_subjects, 1);
+for pi = 1:num_subjects
     % Load SQ Data
     SQData{pi} = load(fullfile(DataPath, 'SignalQuality', flist(pi).name));
     SQData{pi}.participant = flist(pi).name(1:5);
     implant_dates(pi) = datetime(SQData{pi}.implant_metadata.implant_date, 'Format', 'dd-MMM-uuuu');
-
-    % Filter VM data by participant
-    s_idx = strcmp(data.Subject, subjects(pi));
-    total_current = cat(2, data.CurrentCount{s_idx});
-    all_charge = total_current .*  0.2 ./ conversion_factor; % Convert to charge in mC
-    total_charge(pi, :) = sum(all_charge, 2, 'omitnan');
 end
 SQData = cat(1, SQData{:});
 
-clearvars data all_charge total_current s_idx pi
+clearvars all_charge s_idx pi
 
 %% Analyze SNR/VPP/Cleaning
-[SNR_r, SNR_rp, SNR_slope, Vpp_r, Vpp_rp, Vpp_slope] = deal(NaN(256, num_participants));
-[Cln_r, Cln_rp, Cln_slope] = deal(NaN(64, num_participants));
-[median_SNR, median_Vpp, median_vinter, sq_dates, cln_dates] = deal(cell(num_participants, 1));
-[med_SNR_r, med_SNR_p, med_Vpp_r, med_Vpp_p] = deal(NaN(num_participants, 2));
-[med_Cln_r, med_Cln_p] = deal(NaN(num_participants, 1));
+[SNR_r, SNR_rp, SNR_slope, Vpp_r, Vpp_rp, Vpp_slope] = deal(NaN(256, num_subjects));
+[Cln_r, Cln_rp, Cln_slope] = deal(NaN(64, num_subjects));
+[median_SNR, median_Vpp, median_vinter, sq_dates, cln_dates, motor_masks, sensory_masks] = ...
+    deal(cell(num_subjects, 1));
+[med_SNR_r, med_SNR_p, med_Vpp_r, med_Vpp_p] = deal(NaN(num_subjects, 2));
+[med_Cln_r, med_Cln_p] = deal(NaN(num_subjects, 1));
 
 correlation_type = 'spearman';
-for pi = 1:num_participants
+for pi = 1:num_subjects
     % Get sensory and motor masks
     sens_idx = contains(SQData(pi).implant_metadata.array_names, 'sensory', 'IgnoreCase', true);
     sensory_mask = SQData(pi).implant_metadata.chan_indices(sens_idx);
     sensory_mask = cat(2, sensory_mask{:});
+    sensory_masks{pi} = sensory_mask;
     motor_idx = contains(SQData(pi).implant_metadata.array_names, 'motor', 'IgnoreCase', true);
     motor_mask = SQData(pi).implant_metadata.chan_indices(motor_idx);
     motor_mask = cat(2, motor_mask{:});
+    motor_masks{pi} = motor_mask;
 
     %%% SNR
     x = datetime(num2str(SQData(pi).session_dates'), 'Format', 'yyyyMMdd');
@@ -108,9 +101,9 @@ end
 SNR_rp = HolmBonferroni(SNR_rp);
 Vpp_rp = HolmBonferroni(Vpp_rp);
 Cln_rp = HolmBonferroni(Cln_rp);
-med_Cln_p = med_Cln_p * num_participants;
-med_Vpp_p = med_Vpp_p .* num_participants * 2;
-med_SNR_p = med_SNR_p .* num_participants * 2;
+med_Cln_p = med_Cln_p * num_subjects;
+med_Vpp_p = med_Vpp_p .* num_subjects * 2;
+med_SNR_p = med_SNR_p .* num_subjects * 2;
 
 % Store in structure and save
 SQAnalysis = struct();
@@ -135,8 +128,50 @@ SQAnalysis.med_Vpp_p = med_Vpp_p;
 SQAnalysis.med_Cln_r = med_Cln_r;
 SQAnalysis.med_Cln_p = med_Cln_p;
 
-save(fullfile(DataPath, 'SQ_Analysis'), "SQAnalysis")
+%% Compare values with charge delivered
+% Correlate SNR/VPP/Cleaning with VMData on sensory arrays
+[SNR_charge_r, SNR_charge_rp, Vpp_charge_r, Vpp_charge_rp, vinter_charge_r, vinter_charge_rp] = ...
+    deal(NaN(1, num_subjects));
+charge_cell = cell(num_subjects, 1);
+prctile_mask = [5, 95];
 
+for pi = 1:num_subjects
+    % Get charge
+    x = total_charge(pi, :)';
+    charge_cell{pi} = x;
+  
+    % Get sensory mask
+    sens_idx = contains(SQData(pi).implant_metadata.array_names, 'sensory', 'IgnoreCase', true);
+    sensory_mask = SQData(pi).implant_metadata.chan_indices(sens_idx);
+    sensory_mask = cat(2, sensory_mask{:});
+    
+    % SNR
+    snr_y = SNR_slope(sensory_mask, pi);
+    mask = snr_y < prctile(snr_y, prctile_mask(1)) | snr_y > prctile(snr_y, prctile_mask(2));
+    [SNR_charge_r(pi), SNR_charge_rp(pi)] = corr(x(~mask), snr_y(~mask), 'Rows', 'pairwise', 'type', correlation_type);
+
+    % Vpp
+    vpp_y = Vpp_slope(sensory_mask, pi);
+    mask = vpp_y < prctile(vpp_y, prctile_mask(1)) | vpp_y > prctile(vpp_y, prctile_mask(2));
+    [Vpp_charge_r(pi), Vpp_charge_rp(pi)] = corr(x(~mask), vpp_y(~mask), 'Rows', 'pairwise', 'type', correlation_type);
+
+    %Vinter
+    cln_y = Cln_slope(:, pi);
+    mask = cln_y < prctile(cln_y, prctile_mask(1)) | cln_y > prctile(cln_y, prctile_mask(2));
+    [vinter_charge_r(pi), vinter_charge_rp(pi)] = corr(x(~mask), cln_y(~mask), 'Rows', 'pairwise', 'type', correlation_type);
+end
+
+% Add to the output data structure
+SQAnalysis.SNR_charge_r = SNR_charge_r;
+SQAnalysis.SNR_charge_rp = SNR_charge_rp;
+SQAnalysis.Vpp_charge_r = Vpp_charge_r;
+SQAnalysis.Vpp_charge_rp = Vpp_charge_rp;
+SQAnalysis.vinter_charge_r = vinter_charge_r;
+SQAnalysis.vinter_charge_rp = vinter_charge_rp;
+SQAnalysis.total_charge = total_charge;
+
+% Export the data
+save(fullfile(DataPath, 'SQ_Analysis'), "SQAnalysis")
 
 %% Helper functions
 function slope = nan_regression(x, y)
