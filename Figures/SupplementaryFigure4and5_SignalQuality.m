@@ -1,10 +1,10 @@
 % Signal Quality Analysis
 load(fullfile(DataPath, "SQ_Analysis"))
-subject_alt = {'C1', 'C2', 'P2' 'P3', 'P4'};
-num_participants = length(subject_alt);
+load(fullfile(DataPath, "VMData_All.mat"), 'total_charge')
+[subject_list, num_subjects] = GetSubjectList(true);
 
 %% Supplementary Figure 4
-[ax_size_y, ax_y_val] = GetAxisCoords(num_participants, 0.04, 0.05);
+[ax_size_y, ax_y_val] = GetAxisCoords(num_subjects, 0.04, 0.05);
 ax_y_val = ax_y_val + 0.03; ax_y_val = flipud(ax_y_val);
 [ax_size_x, ax_x_val] = GetAxisCoords(3, 0.1, 0.075);
 marker_size = 5;
@@ -17,7 +17,7 @@ set(gcf, 'Units', 'Inches', 'Position', [27, 1, 6.45, 7.5]);
 SetFont('Arial', 9)
 
 % Line plots
-for p = 1:num_participants
+for p = 1:num_subjects
     % Get dates for SQData
     x = SQAnalysis.sq_dates{p};
     xl = [0, ceil(x(end))];
@@ -29,12 +29,12 @@ for p = 1:num_participants
     axes('Position', [ax_x_val(1), ax_y_val(p), ax_size_x, ax_size_y]); hold on
         % Sensory
         y = SQAnalysis.median_SNR{p}.sensory;
-        scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .1)
+        scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .25)
         r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
         plot(xl, polyval(r, xl), 'Color', sensory_color, 'LineWidth', 2);
         % Motor
         y = SQAnalysis.median_SNR{p}.motor;
-        scatter(x, y, marker_size, motor_color, 'MarkerEdgeAlpha', .1)
+        scatter(x, y, marker_size, motor_color, 'MarkerEdgeAlpha', .25)
         r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
         plot(xl, polyval(r, xl), 'Color', motor_color, 'LineWidth', 2);
         
@@ -49,21 +49,21 @@ for p = 1:num_participants
             [tx, ty] = GetAxisPosition(gca, 5, 5);
             text(tx, ty, ColorText({'Motor', 'Sensory'}, [motor_color; sensory_color]), ...
                 'HorizontalAlignment', 'left', 'VerticalAlignment', 'bottom')
-        elseif p == round(num_participants / 2)
+        elseif p == round(num_subjects / 2)
             ylabel('SNR', 'FontWeight', 'bold')
         end
-        title(ColorText(subject_alt{p}, SubjectColors(subject_alt{p})), 'VerticalAlignment', 'top')
+        title(ColorText(subject_list{p}, SubjectColors(subject_list{p})), 'VerticalAlignment', 'top')
 
     % Vpp
     axes('Position', [ax_x_val(2), ax_y_val(p), ax_size_x, ax_size_y]); hold on
         % Sensory
         y = SQAnalysis.median_Vpp{p}.sensory;
-        scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .1)
+        scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .25)
         r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
         plot(xl, polyval(r, xl), 'Color', sensory_color, 'LineWidth', 2);
         % Motor
         y = SQAnalysis.median_Vpp{p}.motor;
-        scatter(x, y, marker_size, motor_color, 'MarkerEdgeAlpha', .1)
+        scatter(x, y, marker_size, motor_color, 'MarkerEdgeAlpha', .25)
         r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
         plot(xl, polyval(r, xl), 'Color', motor_color, 'LineWidth', 2);
         
@@ -73,9 +73,9 @@ for p = 1:num_participants
                  'YLim', [0, 200], ...
                  'XTickLabelRotation', 0)
     
-        if p == round(num_participants / 2)
+        if p == round(num_subjects / 2)
             ylabel(sprintf('Vpp (%sV)', GetUnicodeChar('mu')), 'FontWeight', 'bold')
-        elseif p == num_participants
+        elseif p == num_subjects
             xlabel('Years Implanted', 'FontWeight', 'bold')
         end
 
@@ -84,7 +84,7 @@ for p = 1:num_participants
         x = SQAnalysis.cln_dates{p};
         y = SQAnalysis.median_vinter{p};
         y(y < -1.5) = NaN; % Disconnected channels
-        scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .25)
+        scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .5)
         r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
         plot(xl, polyval(r, xl), 'Color', sensory_color, 'LineWidth', 2);
         % [r,p] = corr(x,y, 'Rows', 'complete');
@@ -95,7 +95,7 @@ for p = 1:num_participants
                  'YLim', [-1.3, -0.75], ...
                  'XTickLabelRotation', 0)
     
-        if p == round(num_participants / 2)
+        if p == round(num_subjects / 2)
             ylabel(sprintf('V_{inter} (V)'), 'FontWeight', 'bold')
         end
 end
@@ -116,8 +116,7 @@ shg
 
 %% Supplementary Figure 5
 [ax_size_x, ax_x_val] = GetAxisCoords(3, 0.1, 0.1);
-[ax_size_y, ax_y_val] = GetAxisCoords(num_participants, 0.05, 0.05);
-% ax_y_val = flipud(ax_y_val);
+[ax_size_y, ax_y_val] = GetAxisCoords(num_subjects, 0.05, 0.05);
 ax_y_val = ax_y_val + 0.01;
 
 clf;
@@ -128,7 +127,7 @@ marker_size = 10;
 clearvars ax
 % Create axes
 i = 1;
-for p = 1:num_participants
+for p = 1:num_subjects
     for j = 1:3
         ax(i) = axes('Position', [ax_x_val(j), ax_y_val(p), ax_size_x, ax_size_y]); hold on
         set(ax(i), 'XScale', 'linear', 'YScale', 'linear')
@@ -136,47 +135,42 @@ for p = 1:num_participants
     end
 end
 
-% Correlate SNR/VPP/Cleaning with VMData on sensory arrays
+prctile_mask = [5, 95];
 
 o = length(h.Children) + 1;
-for pi = 1:num_participants
+for pi = 1:num_subjects
     x = total_charge(pi, :)';
     xl = [0 ceil(max(x, [], 'omitnan'))];
   
     % Get sensory mask
-    sens_idx = contains(SQData(pi).implant_metadata.array_names, 'sensory', 'IgnoreCase', true);
-    sensory_mask = SQData(pi).implant_metadata.chan_indices(sens_idx);
-    sensory_mask = cat(2, sensory_mask{:});
+    sensory_mask = SQAnalysis.sensory_masks{pi};
     
     % SNR
-    snr_y = SNR_slope(sensory_mask, pi);
+    snr_y = SQAnalysis.SNR_slope(sensory_mask, pi);
     mask = snr_y < prctile(snr_y, prctile_mask(1)) | snr_y > prctile(snr_y, prctile_mask(2));
     snr_y(mask) = NaN;
     nan_idx = ~isnan(snr_y);
-    scatter(x, snr_y, marker_size, SubjectColors(subjects{pi}), 'MarkerEdgeAlpha', .5, 'Parent', ax(o-3))
+    scatter(x, snr_y, marker_size, SubjectColors(subject_list{pi}), 'MarkerEdgeAlpha', .5, 'Parent', ax(o-3))
     r = polyfit(x(nan_idx), snr_y(nan_idx), 1);
-    plot(xl, polyval(r, xl), 'Color', SubjectColors(subjects{pi}), 'Parent', ax(o-3), 'LineWidth', 2);
-    [SNR_charge_r(pi), SNR_charge_rp(pi)] = corr(x, snr_y, 'Rows', 'pairwise', 'type', correlation_type);
+    plot(xl, polyval(r, xl), 'Color', SubjectColors(subject_list{pi}), 'Parent', ax(o-3), 'LineWidth', 2);
 
     % Vpp
-    vpp_y = Vpp_slope(sensory_mask, pi);
+    vpp_y = SQAnalysis.Vpp_slope(sensory_mask, pi);
     mask = vpp_y < prctile(vpp_y, prctile_mask(1)) | vpp_y > prctile(vpp_y, prctile_mask(2));
     vpp_y(mask) = NaN;
     nan_idx = ~isnan(vpp_y);
-    scatter(x, vpp_y, marker_size, SubjectColors(subjects{pi}), 'MarkerEdgeAlpha', .5, 'Parent', ax(o-2))
+    scatter(x, vpp_y, marker_size, SubjectColors(subject_list{pi}), 'MarkerEdgeAlpha', .5, 'Parent', ax(o-2))
     r = polyfit(x(nan_idx), vpp_y(nan_idx), 1);
-    plot(xl, polyval(r, xl), 'Color', SubjectColors(subjects{pi}), 'Parent', ax(o-2), 'LineWidth', 2);
-    [Vpp_charge_r(pi), Vpp_charge_rp(pi)] = corr(x, vpp_y, 'Rows', 'pairwise', 'type', correlation_type);
+    plot(xl, polyval(r, xl), 'Color', SubjectColors(subject_list{pi}), 'Parent', ax(o-2), 'LineWidth', 2);
 
     %Vinter
-    cln_y = Cln_slope(:, pi);
+    cln_y = SQAnalysis.Cln_slope(:, pi);
     mask = cln_y < prctile(cln_y, prctile_mask(1)) | cln_y > prctile(cln_y, prctile_mask(2));
     cln_y(mask) = NaN;
     nan_idx = ~isnan(cln_y);
-    scatter(x, cln_y, marker_size, SubjectColors(subjects{pi}), 'MarkerEdgeAlpha', .5, 'Parent', ax(o-1))
+    scatter(x, cln_y, marker_size, SubjectColors(subject_list{pi}), 'MarkerEdgeAlpha', .5, 'Parent', ax(o-1))
     r = polyfit(x(nan_idx), cln_y(nan_idx), 1);
-    plot(xl, polyval(r, xl), 'Color', SubjectColors(subjects{pi}), 'Parent', ax(o-1), 'LineWidth', 2);
-    [vinter_charge_r(pi), vinter_charge_rp(pi)] = corr(x, cln_y, 'Rows', 'pairwise', 'type', correlation_type);
+    plot(xl, polyval(r, xl), 'Color', SubjectColors(subject_list{pi}), 'Parent', ax(o-1), 'LineWidth', 2);
 
     % Formatting
     if pi == 3
@@ -200,20 +194,20 @@ xlabel(ax(2), 'Charge per Electrode (mC)', 'FontWeight', 'bold')
 % Add text values after correction
 h = gcf;
 o = length(h.Children) + 1;
-for i = 1:num_participants
-    title(ax(o-3), ColorText(subject_alt(i), SubjectColors(subject_alt(i))));
+for i = 1:num_subjects
+    title(ax(o-3), ColorText(subject_list(i), SubjectColors(subject_list(i))));
 
-    t = sprintf('r = %0.3f\n%s', SNR_charge_r(i), pStr(SNR_charge_rp(i), 3));
+    t = sprintf('r = %0.3f\n%s', SQAnalysis.SNR_charge_r(i), pStr(SQAnalysis.SNR_charge_rp(i), 3));
     [x,y] = GetAxisPosition(ax(o-3), 100, 5);
     text(x,y,t, 'HorizontalAlignment', 'right', 'VerticalAlignment', 'bottom', 'Color', [.2 .2 .2], ...
         'Parent', ax(o-3))
 
-    t = sprintf('r = %0.3f\n%s', Vpp_charge_r(i), pStr(Vpp_charge_rp(i), 3));
+    t = sprintf('r = %0.3f\n%s', SQAnalysis.Vpp_charge_r(i), pStr(SQAnalysis.Vpp_charge_rp(i), 3));
     [x,y] = GetAxisPosition(ax(o-2), 100, 5);
     text(x,y,t, 'HorizontalAlignment', 'right', 'VerticalAlignment', 'bottom', 'Color', [.2 .2 .2], ...
         'Parent', ax(o-2))
 
-    t = sprintf('r = %0.3f\n%s', vinter_charge_r(i), pStr(vinter_charge_rp(i), 3));
+    t = sprintf('r = %0.3f\n%s', SQAnalysis.vinter_charge_r(i), pStr(SQAnalysis.vinter_charge_rp(i), 3));
     [x,y] = GetAxisPosition(ax(o-1), 100, 5);
     text(x,y,t, 'HorizontalAlignment', 'right', 'VerticalAlignment', 'bottom', 'Color', [.2 .2 .2], ...
         'Parent', ax(o-1))

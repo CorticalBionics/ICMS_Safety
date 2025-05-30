@@ -127,6 +127,8 @@ SQAnalysis.med_Vpp_r = med_Vpp_r;
 SQAnalysis.med_Vpp_p = med_Vpp_p;
 SQAnalysis.med_Cln_r = med_Cln_r;
 SQAnalysis.med_Cln_p = med_Cln_p;
+SQAnalysis.motor_masks = motor_masks;
+SQAnalysis.sensory_masks = sensory_masks;
 
 %% Compare values with charge delivered
 % Correlate SNR/VPP/Cleaning with VMData on sensory arrays
@@ -141,9 +143,7 @@ for pi = 1:num_subjects
     charge_cell{pi} = x;
   
     % Get sensory mask
-    sens_idx = contains(SQData(pi).implant_metadata.array_names, 'sensory', 'IgnoreCase', true);
-    sensory_mask = SQData(pi).implant_metadata.chan_indices(sens_idx);
-    sensory_mask = cat(2, sensory_mask{:});
+    sensory_mask = SQAnalysis.sensory_masks{pi};
     
     % SNR
     snr_y = SNR_slope(sensory_mask, pi);
