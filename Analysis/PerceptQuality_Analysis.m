@@ -6,6 +6,7 @@ PainData.P4 = load(fullfile(DataPath, 'QualityData', 'P4_pain.mat'));
 [subject_list, num_subjects] = GetSubjectList();
 
 %% Analyze quality data
+num_channels = 64;
 % Count the number of unique surveys
 unique_surveys = zeros(num_subjects, 1);
 for i = 1:num_subjects
@@ -16,7 +17,7 @@ for i = 1:num_subjects
     unique_surveys(i) = mode(num_unique);
 end
 
-num_perms = 1e1;
+num_perms = 1e3;
 % Discretize and compute naturalness and quality frequency per year
 for i = 1:num_subjects
     % Discretize to years
@@ -106,3 +107,5 @@ for i = 1:num_subjects
     QualityData(i).StabilityCorrelation.corr = qual_corr_mat;
     QualityData(i).StabilityCorrelation.null = qual_corr_mat_null;
 end
+
+save(fullfile(DataPath, 'QualityAnalysis'), "QualityData", "PainData", "unique_surveys")

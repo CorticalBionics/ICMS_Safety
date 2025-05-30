@@ -1,11 +1,12 @@
 load(fullfile(DataPath, 'DetectionData.mat'))
 [subject_list, num_subjects] = GetSubjectList();
+[subject_list_alt, num_subjects] = GetSubjectList(true);
 
 % Detection threshold summary statistics
 for s = 1:num_subjects
     % Count total detection threshold measurements
     ndt = cellfun(@length, {DetectionData{s}.Threshold});
-    fprintf('\n%s:\n', subjects_alt{s})
+    fprintf('\n%s:\n', subject_list_alt{s})
     fprintf('Total DTs: %d\n', sum(ndt));
     fprintf('Per electrode median (range): %1.0f (%1.0f-%1.0f)\n', prctile(ndt, [50, 25, 75]));
 end
@@ -17,13 +18,15 @@ for s = 1:length(DetectionData)
     y = [DetectionData{s}.ThresholdDateLinReg];
     slopes_all{s} = y(1:2:end)'; % Alternates between slope and offest
     g1{s} = repelem(s, length(slopes_all{s}), 1);
-    fprintf('%s mean DT slope = %0.2f\n', subjects_alt{s}, median(slopes_all{s}, 'omitnan') .* 365)
+    fprintf('%s mean DT slope = %0.2f\n', subject_list_alt{s}, median(slopes_all{s}, 'omitnan') .* 365)
 end
 fprintf('Grand mean DT slope = %0.2f\n', mean(cat(1, slopes_all{:}), 'omitnan') * 365)
 anova_tab = anovan(cat(1, slopes_all{:}), cat(1, g1{:}));
 
 
 %% Analyze detection thresholds
+num_channels = 64;
+t_max = 80;
 dw = 250; % Bin width in days
 subj_max_days = zeros(size(DetectionData));
 for i = 1:length(DetectionData)
@@ -32,9 +35,9 @@ end
 max_days = ceil(max(subj_max_days)/ dw) * dw; % Max days
 de = 0 : dw : max_days; % Day edges
 dx = de(1:end-1) + (dw/2); % Day center
-term_idx = zeros(length(subjects), 1);
+term_idx = zeros(num_subjects, 1);
 
-[discretized_thresholds, disabled_electrodes] = deal(cell(length(subjects_alt), 1));
+[discretized_thresholds, disabled_electrodes] = deal(cell(length(subject_list_alt), 1));
 for s = 1:num_subjects
     % Format data
     % num_channels = size(DetectionData{s}, 2);
@@ -83,7 +86,7 @@ for s = 1:num_subjects
     d = d(sort_idx);
     t = t(sort_idx);
     ttfs_idx = find(~isnan(t) & ~isinf(t) & t < t_max, 1, 'first');
-    fprintf('%s\n', subjects_alt{s})
+    fprintf('%s\n', subject_list_alt{s})
     fprintf('\tTime to first sensation: %d\n', d(ttfs_idx))
     
     % Discretize
@@ -101,3 +104,13 @@ for s = 1:num_subjects
     % Print medial starting threshold for each participant
     fprintf('\tMedian starting DT: %0.1f\n', median(discretized_thresholds{s}{1}, 'omitnan'))
 end
+
+%% Make struct and export
+DetectionAnalysis = struct();
+DetectionAnalysis.discretized_thresholds = discretized_thresholds;
+DetectionAnalysis.x = dx;
+DetectionAnalysis.term_idx = term_idx;
+DetectionAnalysis.disabled_electrodes = disabled_electrodes;
+
+% Export the data
+save(fullfile(DataPath, 'DT_Analysis'), "DetectionAnalysis")
