@@ -411,10 +411,10 @@ function mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p,
     for e = 1:64
         if disabled_electrodes{s}(e,t) == 1
             % overlay(SurveyData{s}(e).PFM_TIdx) = 0.5;
-            overlay(SurveyData{s}(e).PFM_TIdx) = overlay(SurveyData{s}(e).PFM_TIdx) + 0.1;
+            overlay(SurveyData{s}(e).PFM_TIdx) = 1; %overlay(SurveyData{s}(e).PFM_TIdx) + 0.1;
         end
     end
-    imagesc(overlay, 'AlphaData',  overlay)
+    imagesc(overlay, 'AlphaData',  overlay .* 0.8)
     colormap(overlay_ax, ColorGradient(SubjectColors(subjects{s}), SubjectColors(subjects{s})))
 
     xl = [0 1050]; yl = [0 750];
