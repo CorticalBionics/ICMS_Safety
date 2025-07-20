@@ -9,11 +9,11 @@ ax_y_val = ax_y_val + 0.03; ax_y_val = flipud(ax_y_val);
 [ax_size_x, ax_x_val] = GetAxisCoords(3, 0.1, 0.075);
 marker_size = 5;
 
-motor_color = rgb(0, 137, 123); % Teal
-sensory_color = rgb(244, 67, 54); % Red
+sensory_color = rgb(52, 152, 219); % Peterriver
+motor_color = rgb(52, 73, 94); % Wetasphalt
 
 clf;
-set(gcf, 'Units', 'Inches', 'Position', [27, 1, 6.45, 7.5]);
+set(gcf, 'Units', 'Inches', 'Position', [1, 1, 6.45, 7.5]);
 SetFont('Arial', 9)
 
 % Line plots
@@ -113,6 +113,20 @@ AddFigureLabels(h.Children([end, end-1, end-2]), [.075, .0275])
 % export_figure3x(FigurePath, 'SuppFig4_SignalQuality')
 
 shg
+
+%% SQ ANOVAs
+sensory_mask = SQAnalysis.sensory_masks{1};
+g2 = ones(256,1);
+g2(sensory_mask) = 2;
+
+g1 = repmat([1:5], 256, 1);
+g2 = repmat(g2, 1, 5);
+[snr_anova_tab] = anovan(SQAnalysis.SNR_slope(:), {g1(:), g2(:)}, ...
+    'varnames', {'Participant', 'ArrayType'});
+
+[p, vpp_anova_tab, stat] = anovan(SQAnalysis.Vpp_slope(:), {g1(:), g2(:)}, ...
+    'varnames', {'Participant', 'ArrayType'});
+multcompare(stat, 'Dimension', 2)
 
 %% Supplementary Figure 5
 [ax_size_x, ax_x_val] = GetAxisCoords(3, 0.1, 0.1);

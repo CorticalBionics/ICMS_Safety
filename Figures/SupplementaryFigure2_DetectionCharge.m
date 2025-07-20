@@ -5,11 +5,10 @@ load(fullfile(DataPath, 'VMData_All.mat'));
 num_channels = 64;
 
 %% Supplementary Figure 2
-cmap = ColorGradient([1 1 1], rgb(21, 101, 192));
 SetFont('Arial', 9)
 
 clf; 
-set(gcf, 'Units', 'Inches', 'Position', [27, 1, 6.5, 8.5])
+set(gcf, 'Units', 'Inches', 'Position', [1, 1, 6.5, 8.5])
 
 % Detection rasters
 [ax_size, ax_val] = GetAxisCoords(num_subjects, 0.05, 0.04);
@@ -38,7 +37,7 @@ for s = 1:num_subjects
     
     % Sort by color
     [ut, ~, it] = unique(t);
-    cmap = winter(length(ut));
+    cmap = sky(length(ut));
     for i = 1:length(ut)
         it_idx = it == i;
         x = d(it_idx);

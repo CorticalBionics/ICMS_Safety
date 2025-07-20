@@ -25,10 +25,10 @@ SetFont('Arial', 9)
 clf;
 clearvars ax
 
-motor_color = rgb(0, 137, 123); % Teal
-sensory_color = rgb(244, 67, 54); % Red
+sensory_color = rgb(52, 152, 219); % Peterriver
+motor_color = rgb(52, 73, 94); % Wetasphalt
 
-set(gcf, 'Units', 'Inches', 'Position', [30 1 6.4 6.5])
+set(gcf, 'Units', 'Inches', 'Position', [1 1 6.4 6.5])
 [ax_w, ax_xs] = GetAxisCoords(3, .1, .05); ax_xs = ax_xs + .025;
 [ax_h, ax_ys] = GetAxisCoords(3, .125, .05); ax_ys(1) = ax_ys(1) + 0.025;
 
@@ -68,12 +68,13 @@ ax(2) = axes('Position', [ax_xs(2), ax_ys(3), ax_w, ax_h]); hold on
     for s = 1:num_subjects-1
         y = [DetectionData{s}.ThresholdDateLinReg];
         y = y(1:2:end);
-        Swarm(s, y .* 365, SubjectColors(subject_list_alt{s}), 'DistributionWidth', .35, 'DS', 'Box', 'SPL', 0)
+        Swarm(s, y .* 365, SubjectColors(subject_list_alt{s}), 'DistributionWidth', .35, 'DS', 'Box', 'SPL', 0, ...
+            'DLW', 1.5)
     end
     set(gca, 'Ylim', [-30 70], ...
              'XTick', [1:5], ...
              'XTickLabel', ColorText(subject_list_alt, SubjectColors(subject_list_alt)), ...
-             'XLim', [.5 5.5], ...
+             'XLim', [.5 4.5], ...
              'YTick', [-30:30:60])
     ylabel(sprintf('%sDT (%sA/year)', GetUnicodeChar('Delta'), GetUnicodeChar('mu')))
 
@@ -81,12 +82,15 @@ ax(2) = axes('Position', [ax_xs(2), ax_ys(3), ax_w, ax_h]); hold on
 % Functional electrodes
 ax(3) = axes('Position', [ax_xs(3), ax_ys(3), ax_w, ax_h]); hold on
     for s = 1:num_subjects
-        plot(DetectionAnalysis.x(1:DetectionAnalysis.term_idx(s)) ./ 365, ...
-            mean(DetectionAnalysis.disabled_electrodes{s}(:,1:DetectionAnalysis.term_idx(s)), 1, 'omitmissing'), ...
-            'Color', SubjectColors(subject_list_alt{s}), 'LineWidth', 2)
+        x = DetectionAnalysis.x(1:DetectionAnalysis.term_idx(s)) ./ 365;
+        y = mean(DetectionAnalysis.disabled_electrodes{s}(:,1:DetectionAnalysis.term_idx(s)), 1, 'omitmissing');
+        plot(x, y, 'Color', SubjectColors(subject_list_alt{s}), 'LineWidth', 2)
+        scatter(x,y, 20, 'MarkerEdgeColor', SubjectColors(subject_list_alt{s}), 'MarkerFaceColor', 'w', ...
+            'LineWidth', 2, 'MarkerFaceAlpha', 1)
     end
     ylabel('p(Functional Electrodes)')
     xlabel('Years from Implant')
+    set(gca, 'YLim', [0 1])
 
 % Coverage hand maps
 % P2 Timepoint 1
@@ -200,38 +204,56 @@ ax2 = axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
         % Plot SNR
         Swarm(pi-offset, SQAnalysis.SNR_slope(sensory_mask, pi), sensory_color, 'Parent', ax1, ...
             'Sides', 'left', 'DS', 'violin', 'SPL', 0, 'DW', .35)
+        if SQAnalysis.SNR_slope_p(pi, 1) < 0.05
+            text(pi-0.15, 1, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
+                'Parent', ax1, 'FontSize', 15, 'Color', sensory_color)
+        end
         Swarm(pi+offset, SQAnalysis.SNR_slope(motor_mask, pi), motor_color, 'Parent', ax1, ...
             'Sides', 'right', 'DS', 'violin', 'SPL', 0, 'DW', .35)
+        if SQAnalysis.SNR_slope_p(pi, 2) < 0.05
+            text(pi+0.15, 1, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
+                'Parent', ax1, 'FontSize', 15, 'Color', motor_color)
+        end
         % Ranksum test
         [P,H] = ranksum(SQAnalysis.SNR_slope(sensory_mask, pi), SQAnalysis.SNR_slope(motor_mask, pi));
         P = P * 5; % Bonferroni correction
         if P < 0.05
-            text(pi, 1, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
-                'Parent', ax1, 'FontSize', 15)
+            text(pi, -1.1, '#', 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center', ...
+                'Parent', ax1, 'FontSize', 9)
             fprintf('Participant %s SNR slope %s\n', subject_list_alt{pi}, pStr(P, 3))
         end
 
         % Plot Vpp
         Swarm(pi-offset, SQAnalysis.Vpp_slope(sensory_mask, pi), sensory_color, 'Parent', ax2, ...
             'Sides', 'left', 'DS', 'violin', 'SPL', 0, 'DW', .35)
+        if SQAnalysis.Vpp_slope_p(pi, 1) < 0.05
+            text(pi-0.15, 100, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
+                'Parent', ax2, 'FontSize', 15, 'Color', sensory_color)
+        end
         Swarm(pi+offset, SQAnalysis.Vpp_slope(motor_mask, pi), motor_color, 'Parent', ax2, ...
             'Sides', 'right', 'DS', 'violin', 'SPL', 0, 'DW', .35)
+        if SQAnalysis.Vpp_slope_p(pi, 2) < 0.05
+            text(pi+0.15, 100, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
+                'Parent', ax2, 'FontSize', 15, 'Color', motor_color)
+        end
         % Ranksum test
         [P,H] = ranksum(SQAnalysis.Vpp_slope(sensory_mask, pi), SQAnalysis.Vpp_slope(motor_mask, pi));
         P = P * 5; % Bonferroni correction
         if P < 0.05
-            text(pi, 100, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
-                'Parent', ax2, 'FontSize', 15)
+            text(pi, -160, '#', 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center', ...
+                'Parent', ax2, 'FontSize', 9)
             fprintf('Participant %s VPP slope %s\n', subject_list_alt{pi}, pStr(P,3))
         end
     end
-    set(ax1, 'YLim', [-1 1], ...
+    set(ax1, 'YLim', [-1.1 1], ...
              'XLim', xl, ...
              'XTick', [1:num_subjects], ...
              'XTickLabels', ColorText(subject_list_alt, SubjectColors(subject_list_alt)))
     ylabel(ax1, sprintf('%sSNR/year', GetUnicodeChar('Delta')), 'FontWeight', 'bold')
+    text(3, -1, ColorText({'Sensory', 'Motor'}, [sensory_color; motor_color]), ...
+        'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center', 'Parent', ax1)
 
-    set(ax2, 'YLim', [-150 100], ...
+    set(ax2, 'YLim', [-160 100], ...
              'XLim', xl, ...
              'XTick', [1:num_subjects], ...
              'XTickLabels', ColorText(subject_list_alt, SubjectColors(subject_list_alt)))
@@ -240,8 +262,12 @@ ax2 = axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
 axes('Position', [ax_xs(3), ax_ys(1), ax_w, ax_h]); hold on
     plot(xl, [0, 0], 'Color', [.6 .6 .6], 'LineStyle', '--')
     for pi = 1:num_subjects
-        Swarm(pi-offset, SQAnalysis.Cln_slope(:, pi), sensory_color, ...
+        Swarm(pi, SQAnalysis.Cln_slope(:, pi), sensory_color, ...
             'Sides', 'both', 'DS', 'violin', 'SPL', 0, 'DW', .35)
+        if SQAnalysis.Cln_slope_p(pi) < 0.05
+            text(pi, .25, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
+                'FontSize', 15, 'Color', sensory_color)
+        end
     end
 
     set(gca, 'YLim', [-.25 .25], ...
@@ -287,11 +313,11 @@ xt8 = [0:8];
 xtl8 = sparse_xticklabels(xt8);
 
 clf; 
-set(gcf, 'Units', 'Inches', 'Position', [30 1 6.4 4])
+set(gcf, 'Units', 'Inches', 'Position', [1 1 6.4 4])
 % Number of surveys
 axes('Position', [ax_xs(1), ax_ys(2), ax_w, ax_h]); hold on
     for s = 1:num_subjects
-        Swarm(s, unique_surveys(s), 'DS', 'Bar', 'SPL', 0, 'Color', SubjectColors(subject_list_alt{s}))
+        Swarm(s, unique_surveys(s,:), 'DS', 'Bar', 'Color', SubjectColors(subject_list_alt{s}))
     end
 
     set(gca, 'XLim', [.5 5.5], ...
@@ -382,24 +408,27 @@ axes('Position', [ax_xs(3), ax_ys(1), ax_w, ax_h]); hold on
     % Stim related
     % P3
     idx = QualityData(4).Responses.Pain > 0;
-    Swarm(1, QualityData(4).Responses.Pain (idx),...
+    Swarm(2, QualityData(4).Responses.Pain(idx),...
         'DS', 'Bar', 'Color', SubjectColors('P3'), 'SPL', 0)
-    Swarm(4, PainData.P3.uPain,...
+    Swarm(5, PainData.P3.uPain,...
         'DS', 'Bar', 'Color', SubjectColors('P3'), 'SPL', 0, 'HS', '\', 'HA', 84)
+    [p,h] = ranksum(QualityData(4).Responses.Pain(idx), PainData.P3.uPain)
     % P4
     idx = QualityData(5).Responses.Pain > 0;
-    Swarm(2, QualityData(5).Responses.Pain (idx),...
+    Swarm(1, QualityData(5).Responses.Pain (idx),...
         'DS', 'Bar', 'Color', SubjectColors('P4'), 'SPL', 0)
-    Swarm(5, PainData.P4.uPain,...
+    Swarm(4, PainData.P4.uPain,...
         'DS', 'Bar', 'Color', SubjectColors('P4'), 'SPL', 0, 'HS', '\', 'HA', 84)
+    [p,h] = ranksum(QualityData(5).Responses.Pain(idx), PainData.P4.uPain);
 
     set(gca, 'XLim', [.5 5.5], ...
              'XTick', [1.5, 4.5], ...
-             'XTickLabel', {'Stim', 'Baseline'})
+             'XTickLabel', {'Baseline', 'Stim'})
     ylabel('Pain Rating')
 
 AddFigureLabels(gcf, [0.05 -0.015])
 % export_figure3x(FigurePath, 'SuppFig3_QualityStability')
+shg
 
 %% Functions
 function mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)

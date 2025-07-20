@@ -8,13 +8,11 @@ PainData.P4 = load(fullfile(DataPath, 'QualityData', 'P4_pain.mat'));
 %% Analyze quality data
 num_channels = 64;
 % Count the number of unique surveys
-unique_surveys = zeros(num_subjects, 1);
+unique_surveys = zeros(num_subjects, num_channels);
 for i = 1:num_subjects
-    num_unique = zeros(num_channels, 1);
     for c = 1:num_channels
-        num_unique(c) = sum(QualityData(i).Responses.channel == c);
+        unique_surveys(i,c) = sum(QualityData(i).Responses.channel == c);
     end
-    unique_surveys(i) = mode(num_unique);
 end
 
 num_perms = 1e3;

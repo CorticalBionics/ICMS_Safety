@@ -69,7 +69,7 @@ cmap = ColorGradient([1 1 1], rgb(21, 101, 192));
 SetFont('Arial', 9)
 
 clf; 
-set(gcf, 'Units', 'Inches', 'Position', [27, 1, 6.5, 8.5])
+set(gcf, 'Units', 'Inches', 'Position', [1, 1, 6.5, 8.5])
 
 % Heatmaps
 [ax_size, ax_val] = GetAxisCoords(num_subjects, 0.04, 0.04);
@@ -135,7 +135,7 @@ for pi = 1:num_subjects
                 elseif cidx == 0
                     cidx = 1;
                 end
-                patch(x, y, cmap(cidx, :), 'EdgeColor', [.6 .6 .6])
+                patch(x, y, cmap(cidx, :), 'EdgeColor', [.6 .6 .6], 'FaceAlpha', 1)
             end
         end
         y_offset = 7;
@@ -190,4 +190,4 @@ AddFigureLabels(all_ax([7:-1:1]), [0.05, 0.025], 66)
 
 shg
 
-export_figure3x(FigurePath, 'SuppFig1_PulseCounts')
+%export_figure3x(FigurePath, 'SuppFig1_PulseCounts')
