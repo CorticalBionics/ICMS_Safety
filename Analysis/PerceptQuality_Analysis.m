@@ -33,15 +33,17 @@ for i = 1:num_subjects
     any_resp = any(QualityData(i).Responses{:,3:end} > 0, 2);
     
     % Compute naturalness for each year across channels
-    nat_mat = NaN(y_max+1, num_channels);
+    [nat_mat, int_mat] = deal(NaN(y_max+1, num_channels));
     for c = 1:num_channels
         c_idx = QualityData(i).Responses.channel == c;
         for j = 1:y_max
             y_idx = (j-1 < y) & (y < j);
             nat_mat(j,c) = mean(QualityData(i).Responses.Naturalness(y_idx & c_idx & any_resp), 'omitnan');
+            int_mat(j,c) = mean(QualityData(i).Responses.Intensity(y_idx & c_idx), 'omitnan'); % Don't filter resp for intensity
         end
     end
     QualityData(i).Naturalness = nat_mat; %#ok<*SAGROW>
+    QualityData(i).Intensity = int_mat; %#ok<*SAGROW>
 
     % Compute quality frequency in each year
     resp_mat = QualityData(i).Responses{:, [6:end]};

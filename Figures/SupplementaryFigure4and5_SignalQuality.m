@@ -13,7 +13,7 @@ sensory_color = rgb(52, 152, 219); % Peterriver
 motor_color = rgb(52, 73, 94); % Wetasphalt
 
 clf;
-set(gcf, 'Units', 'Inches', 'Position', [1, 1, 6.45, 7.5]);
+set(gcf, 'Units', 'Inches', 'Position', [30, 1, 6.45, 7.5]);
 SetFont('Arial', 9)
 
 % Line plots
@@ -98,15 +98,6 @@ for p = 1:num_subjects
         if p == round(num_subjects / 2)
             ylabel(sprintf('V_{inter} (V)'), 'FontWeight', 'bold')
         end
-end
-
-
-% Manually reduce range of P4 cleaning voltages
-h = gcf();
-for i = [4:6]
-    set(h.Children(i), 'XLim', [-.1 2.1], ...
-                       'XTick', [0:2], ...
-                       'XTickLabels', {'0', '', '2'})
 end
 
 AddFigureLabels(h.Children([end, end-1, end-2]), [.075, .0275])

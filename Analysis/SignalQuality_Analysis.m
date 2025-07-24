@@ -51,7 +51,7 @@ for pi = 1:num_subjects
 
     %%% SNR
     x = datetime(num2str(SQData(pi).session_dates'), 'Format', 'yyyyMMdd');
-    x = years(x - x(1));
+    x = years(x - implant_dates(pi));
     sq_dates{pi} = x;
     y = cat(1, SQData(pi).signal_quality_analysis.ch_snr);
     y_snr = 10.^(y./20); % Undo log scaling
@@ -89,7 +89,7 @@ for pi = 1:num_subjects
     %%% Cleaning
     idx = cellfun(@(c) ~isempty(c), {cleaning_data{pi}.vmin});
     x = [cleaning_data{pi}(idx).date];
-    x = years(x - x(1));
+    x = years(x - implant_dates(pi));
     cln_dates{pi} = x';
     y = cat(2, [cleaning_data{pi}(idx).vinter]);
     y(y < -1.5) = NaN; % Disconnected channels
@@ -185,7 +185,6 @@ SQAnalysis.vinter_charge_r = vinter_charge_r;
 SQAnalysis.vinter_charge_rp = vinter_charge_rp;
 SQAnalysis.total_charge = total_charge;
 
-% Export the data
 save(fullfile(DataPath, 'SQ_Analysis'), "SQAnalysis")
 
 %% Helper functions

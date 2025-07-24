@@ -139,8 +139,8 @@ total_charge = zeros(length(subject_ids), 64);
 conversion_factor = 1e6;
 % Filter VM data by participant
 for pi = 1:length(subject_ids)
-    s_idx = strcmp(data.Subject, subject_ids(pi));
-    total_current = cat(2, data.CurrentCount{s_idx});
+    s_idx = strcmp(VMData.Subject, subject_ids(pi));
+    total_current = cat(2, VMData.CurrentCount{s_idx});
     all_charge = total_current .*  0.2 ./ conversion_factor; % Convert to charge in mC
     total_charge(pi, :) = sum(all_charge, 2, 'omitnan');
 end
