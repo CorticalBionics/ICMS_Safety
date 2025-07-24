@@ -27,6 +27,9 @@ for pi = 1:num_subjects
 end
 SQData = cat(1, SQData{:});
 
+% Load Detection threshold data
+load(fullfile(DataPath, 'DT_Analysis'));
+
 clearvars all_charge s_idx pi
 
 %% Analyze SNR/VPP/Cleaning
@@ -100,8 +103,7 @@ for pi = 1:num_subjects
 
     [Cln_r(:,pi), Cln_rp(:,pi)] = corr(x', y', 'Rows', 'pairwise', 'type', correlation_type);
     median_vinter{pi} = median(y, 1, 'omitmissing');
-    [med_Cln_r(pi), med_Cln_p(pi)] = corr(x', median_vinter{pi}', 'Rows', 'complete');
-    
+    [med_Cln_r(pi), med_Cln_p(pi)] = corr(x', median_vinter{pi}', 'Rows', 'complete');    
 end
 
 % Holm Bonferroni correction
@@ -147,8 +149,8 @@ SQAnalysis.sensory_masks = sensory_masks;
 
 %% Compare values with charge delivered
 % Correlate SNR/VPP/Cleaning with VMData on sensory arrays
-[SNR_charge_r, SNR_charge_rp, Vpp_charge_r, Vpp_charge_rp, vinter_charge_r, vinter_charge_rp] = ...
-    deal(NaN(1, num_subjects));
+[SNR_charge_r, SNR_charge_rp, Vpp_charge_r, Vpp_charge_rp, vinter_charge_r, vinter_charge_rp, ...
+    DT_charge_r, DT_charge_rp] = deal(NaN(1, num_subjects));
 charge_cell = cell(num_subjects, 1);
 prctile_mask = [5, 95];
 
@@ -170,11 +172,21 @@ for pi = 1:num_subjects
     mask = vpp_y < prctile(vpp_y, prctile_mask(1)) | vpp_y > prctile(vpp_y, prctile_mask(2));
     [Vpp_charge_r(pi), Vpp_charge_rp(pi)] = corr(x(~mask), vpp_y(~mask), 'Rows', 'pairwise', 'type', correlation_type);
 
-    %Vinter
+    % Vinter
     cln_y = Cln_slope(:, pi);
     mask = cln_y < prctile(cln_y, prctile_mask(1)) | cln_y > prctile(cln_y, prctile_mask(2));
     [vinter_charge_r(pi), vinter_charge_rp(pi)] = corr(x(~mask), cln_y(~mask), 'Rows', 'pairwise', 'type', correlation_type);
+
+    % Detection
+    dt_y = DetectionAnalysis.dt_slopes(:, pi);
+    [DT_charge_r(pi), DT_charge_rp(pi)] = corr(x, dt_y, 'Rows', 'pairwise', 'type', correlation_type);
 end
+
+% Correct for multiple comparisons
+SNR_charge_rp = HolmBonferroni(SNR_charge_rp);
+Vpp_charge_rp = HolmBonferroni(Vpp_charge_rp);
+vinter_charge_rp = HolmBonferroni(vinter_charge_rp);
+DT_charge_rp = HolmBonferroni(DT_charge_rp);
 
 % Add to the output data structure
 SQAnalysis.SNR_charge_r = SNR_charge_r;
@@ -183,6 +195,8 @@ SQAnalysis.Vpp_charge_r = Vpp_charge_r;
 SQAnalysis.Vpp_charge_rp = Vpp_charge_rp;
 SQAnalysis.vinter_charge_r = vinter_charge_r;
 SQAnalysis.vinter_charge_rp = vinter_charge_rp;
+SQAnalysis.DT_charge_r = DT_charge_r;
+SQAnalysis.DT_charge_rp = DT_charge_rp;
 SQAnalysis.total_charge = total_charge;
 
 save(fullfile(DataPath, 'SQ_Analysis'), "SQAnalysis")

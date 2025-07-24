@@ -194,6 +194,7 @@ end
 
 %% Convert to participant:date format and save
 clearvars -except output_path subject_ids
+disp('Consolidating')
 
 u_part = unique(cellfun(@(c) c(1:5), subject_ids, 'UniformOutput', false));
 cleaning_data = cell(size(u_part));

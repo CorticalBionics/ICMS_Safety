@@ -125,7 +125,7 @@ for s = 1:num_subjects
     % Plot
     scatter(x_trim, y_trim, 30, SubjectColors(subject_list{s}), 'filled', 'MarkerFaceAlpha', .2)
     plot(xq, feval(f, xq), 'Color', SubjectColors(subject_list{s}), 'LineStyle', '-','LineWidth', 2)
-    [corr_coeffs(s,1), corr_coeffs_p(s,1)] = corr(x,y, 'Rows', 'complete', 'Type', 'Kendall');
+    [corr_coeffs(s,1), corr_coeffs_p(s,1)] = corr(x,y, 'Rows', 'complete', 'Type', 'Spearman');
 
     if s == 5
         xlabel(sprintf('Median DT_{50} (%sA)', GetUnicodeChar('mu')))

@@ -23,6 +23,18 @@ end
 fprintf('Grand mean DT slope = %0.2f\n', mean(cat(1, slopes_all{:}), 'omitnan') * 365)
 anova_tab = anovan(cat(1, slopes_all{:}), cat(1, g1{:}));
 
+% Format the slopes
+dt_slopes = NaN(64, num_subjects);
+for s = 1:num_subjects
+    for i = 1:64
+        ch_idx = find([DetectionData{s}.Channel] == i);
+        if isempty(ch_idx) % Skip untested channels
+            continue
+        end
+        dt_slopes(i,s) = slopes_all{s}(ch_idx);
+    end
+end
+
 
 %% Analyze detection thresholds
 num_channels = 64;
@@ -111,6 +123,7 @@ DetectionAnalysis.discretized_thresholds = discretized_thresholds;
 DetectionAnalysis.x = dx;
 DetectionAnalysis.term_idx = term_idx;
 DetectionAnalysis.disabled_electrodes = disabled_electrodes;
+DetectionAnalysis.dt_slopes = dt_slopes;
 
 % Export the data
 save(fullfile(DataPath, 'DT_Analysis'), "DetectionAnalysis")

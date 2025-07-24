@@ -1,5 +1,6 @@
 % Signal Quality Analysis
 load(fullfile(DataPath, "SQ_Analysis"))
+load(fullfile(DataPath, 'DT_Analysis'));
 load(fullfile(DataPath, "VMData_All.mat"), 'total_charge')
 [subject_list, num_subjects] = GetSubjectList(true);
 
@@ -100,6 +101,7 @@ for p = 1:num_subjects
         end
 end
 
+h = gcf();
 AddFigureLabels(h.Children([end, end-1, end-2]), [.075, .0275])
 % export_figure3x(FigurePath, 'SuppFig4_SignalQuality')
 
@@ -222,3 +224,147 @@ end
 
 AddFigureLabels(h.Children([3,2,1]), [.07, .0275])
 % export_figure3x(FigurePath, 'SuppFig5_ChargeQuality')
+
+%% Supplementary Figure 6 - Correlations between all factors
+% For each participant:
+% Correlate delta SNR, delta VPP, delta Vinter, delta detection threshold
+[corr_rs, corr_ps] = deal(NaN(4, 4, num_subjects));
+p_mask = logical(tril(ones(4)));
+r_mask = ones(4); r_mask(1:5:end) = 0; r_mask = logical(r_mask);
+for pi = 1:num_subjects
+    % Get sensory mask
+    sensory_mask = SQAnalysis.sensory_masks{pi};
+
+    % Get value
+    x = [SQAnalysis.SNR_slope(sensory_mask, pi), SQAnalysis.Vpp_slope(sensory_mask, pi), ...
+         SQAnalysis.Cln_slope(:,pi), DetectionAnalysis.dt_slopes(:,pi)];
+    % remove P4 from detection
+    if pi == 5
+        x(:,4) = NaN;
+    end
+    [r, p] = corr(x, 'Rows','pairwise','Type','Spearman');
+    % NaN the p values for later HB correction
+    p(p_mask) = NaN;
+    corr_ps(:,:,pi) = p;
+    
+    % Remove self-correlation
+    corr_rs(:,:,pi) = r;
+end
+
+xl = {'SNR', 'Vpp', 'Vinter', 'DT'};
+corr_ps = HolmBonferroni(corr_ps);
+
+%%
+[ax_size_x, ax_x_val] = GetAxisCoords(4, 0.05, 0.1);
+[ax_size_y, ax_y_val] = GetAxisCoords(1, 0.3, 0.15);
+ax_y_val = ax_y_val + 0.05;
+
+clf;
+set(gcf, 'Units', 'Inches', 'Position', [27, 1, 12, 4]);
+SetFont('Arial', 18)
+marker_size = 60;
+
+colors = SubjectColors(subject_list);
+
+% SNR
+axes('Position', [ax_x_val(1), ax_y_val, ax_size_x, ax_size_y]); hold on; title 'SNR'
+    x = 1;
+    yv = [2:4];
+    for y = yv
+        Swarm(x, squeeze(corr_rs(1, y, :)), 'SwarmColor', colors, ...
+            'DistributionMethod', 'None', 'CenterLineWidth', 0, 'SwarmMarkerSize', marker_size)
+        x = x + 1;
+    end
+
+    set(gca, 'XLim', [.5 3.5], ...
+             'XTick', [1:3], ...
+             'XTickLabels', xl(yv), ...
+             'YLim', [-1 1])
+    ylabel('Correlation (r)')
+
+% Vpp
+axes('Position', [ax_x_val(2), ax_y_val, ax_size_x, ax_size_y]); hold on; title 'V_{pp}'
+    x = 1;
+    yv = [1,3,4];
+    for y = yv
+        Swarm(x, squeeze(corr_rs(2, y, :)), 'SwarmColor', colors, ...
+            'DistributionMethod', 'None', 'CenterLineWidth', 0, 'SwarmMarkerSize', marker_size)
+        x = x + 1;
+    end
+
+    set(gca, 'XLim', [.5 3.5], ...
+             'XTick', [1:3], ...
+             'XTickLabels', xl(yv), ...
+             'YLim', [-1 1], ...
+             'YTickLabels', {})
+
+% V_inter
+axes('Position', [ax_x_val(3), ax_y_val, ax_size_x, ax_size_y]); hold on; title 'V_{inter}'
+    x = 1;
+    yv = [1,2,4];
+    for y = yv
+        Swarm(x, squeeze(corr_rs(3, y, :)), 'SwarmColor', colors, ...
+            'DistributionMethod', 'None', 'CenterLineWidth', 0, 'SwarmMarkerSize', marker_size)
+        x = x + 1;
+    end
+
+    set(gca, 'XLim', [.5 3.5], ...
+             'XTick', [1:3], ...
+             'XTickLabels', xl(yv), ...
+             'YLim', [-1 1], ...
+             'YTickLabels', {})
+
+% DT
+axes('Position', [ax_x_val(4), ax_y_val, ax_size_x, ax_size_y]); hold on; title 'dDT'
+    x = 1;
+    yv = [1:3];
+    for y = yv
+        Swarm(x, squeeze(corr_rs(4, y, :)), 'SwarmColor', colors, ...
+            'DistributionMethod', 'None', 'CenterLineWidth', 0, 'SwarmMarkerSize', marker_size)
+        x = x + 1;
+    end
+
+    set(gca, 'XLim', [.5 3.5], ...
+             'XTick', [1:3], ...
+             'XTickLabels', xl(yv), ...
+             'YLim', [-1 1], ...
+             'YTickLabels', {})
+    
+
+
+shg
+
+%%
+
+clf;
+for pi = 1:num_subjects-1
+    subplot(1,num_subjects-1,pi); hold on
+    imagesc(corr_rs(:,:,pi), 'AlphaData', r_mask)
+    set(gca, 'CLim', [-1 1], ...
+             'XTick', [1:4], ...
+             'YTick', [1:4], ...
+             'XTickLabel', xl, ...
+             'YTickLabel', xl, ...
+             'XLim', [.5, 4.5], ...
+             'YLim', [.5, 4.5], ...
+             'Box', 'on', ...
+             'Color', [.8 .8 .8])
+    if pi > 1
+        set(gca, 'YTickLabel', {})
+    end
+
+    for x = 1:4
+        for y = 1:4
+            if y <= x
+                continue
+            end
+            text(y,x, sprintf("r = %0.2f\n%s", corr_rs(x,y,pi), pStr(corr_ps(x,y,pi))), ...
+                'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle')
+        end
+    end
+
+end
+
+ColorbarLegend(gcf(), [.95 .125 .025 .81], parula(), 'vert', [-1 1])
+
+shg

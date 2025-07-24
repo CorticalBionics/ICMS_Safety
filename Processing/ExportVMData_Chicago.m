@@ -6,9 +6,11 @@ for s = 1:length(subj_list)
     subj_path = fullfile(tld, subj_list{s}, 'VoltageMonitor');
     vm_collection_list = dir(subj_path);
     for c = 1:size(vm_collection_list,1)
+        % Only look at folders that start with VM (new format)
         if contains(vm_collection_list(c).name, 'VM') == 0
             continue
         end
+
         vm_path = fullfile(subj_path, vm_collection_list(c).name);
         mat_fname = sprintf('%s_VM_%s.mat', subj_list{s}, vm_collection_list(c).name(4:end));
         
@@ -26,7 +28,7 @@ for s = 1:length(subj_list)
             json_fname = json_fname2;
         else
             warning('No file: %s', json_fname1)
-            return
+            continue
         end
 
         fprintf('Loading %s\n', json_fname)
