@@ -85,7 +85,7 @@ for s = 1:num_subjects
              'XTickLabelRotation', 0)
     title(subject_list{s}, 'Color', SubjectColors(subject_list{s}))
     if s == 5
-        xlabel('Years post Implant', 'VerticalAlignment', 'top')
+        xlabel('Years Post Implant', 'VerticalAlignment', 'top')
     elseif s == 3
         ylabel('Electrode')
     end

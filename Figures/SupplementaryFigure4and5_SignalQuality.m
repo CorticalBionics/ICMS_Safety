@@ -14,7 +14,7 @@ sensory_color = rgb(52, 152, 219); % Peterriver
 motor_color = rgb(52, 73, 94); % Wetasphalt
 
 clf;
-set(gcf, 'Units', 'Inches', 'Position', [30, 1, 6.45, 7.5]);
+set(gcf, 'Units', 'Inches', 'Position', [1, 1, 6.45, 7.5]);
 SetFont('Arial', 9)
 
 % Line plots
@@ -119,7 +119,7 @@ g2 = repmat(g2, 1, 5);
 
 [p, vpp_anova_tab, stat] = anovan(SQAnalysis.Vpp_slope(:), {g1(:), g2(:)}, ...
     'varnames', {'Participant', 'ArrayType'});
-multcompare(stat, 'Dimension', 2)
+mc = multcompare(stat, 'Dimension', 2);
 
 %% Supplementary Figure 5
 [ax_size_x, ax_x_val] = GetAxisCoords(3, 0.1, 0.1);
@@ -127,7 +127,7 @@ multcompare(stat, 'Dimension', 2)
 ax_y_val = ax_y_val + 0.01;
 
 clf;
-set(gcf, 'Units', 'Inches', 'Position', [27, 1, 6.45, 8]);
+set(gcf, 'Units', 'Inches', 'Position', [1, 1, 6.45, 8]);
 SetFont('Arial', 9)
 marker_size = 10;
 
@@ -225,7 +225,7 @@ end
 AddFigureLabels(h.Children([3,2,1]), [.07, .0275])
 % export_figure3x(FigurePath, 'SuppFig5_ChargeQuality')
 
-%% Supplementary Figure 6 - Correlations between all factors
+%% Correlations between all factors
 % For each participant:
 % Correlate delta SNR, delta VPP, delta Vinter, delta detection threshold
 [corr_rs, corr_ps] = deal(NaN(4, 4, num_subjects));
@@ -251,120 +251,69 @@ for pi = 1:num_subjects
     corr_rs(:,:,pi) = r;
 end
 
-xl = {'SNR', 'Vpp', 'Vinter', 'DT'};
 corr_ps = HolmBonferroni(corr_ps);
+% Reflect the ps values after HBPHC
+corr_ps = mean(cat(4, corr_ps, permute(corr_ps, [2,1,3])), 4, 'omitnan');
 
-%%
+%% Split electrodes by metric and dt
+
+
+%% Supplementary Figure 6
 [ax_size_x, ax_x_val] = GetAxisCoords(4, 0.05, 0.1);
 [ax_size_y, ax_y_val] = GetAxisCoords(1, 0.3, 0.15);
 ax_y_val = ax_y_val + 0.05;
 
 clf;
-set(gcf, 'Units', 'Inches', 'Position', [27, 1, 12, 4]);
+set(gcf, 'Units', 'Inches', 'Position', [1, 1, 12, 4]);
 SetFont('Arial', 18)
-marker_size = 60;
 
 colors = SubjectColors(subject_list);
-
-% SNR
-axes('Position', [ax_x_val(1), ax_y_val, ax_size_x, ax_size_y]); hold on; title 'SNR'
-    x = 1;
-    yv = [2:4];
-    for y = yv
-        Swarm(x, squeeze(corr_rs(1, y, :)), 'SwarmColor', colors, ...
-            'DistributionMethod', 'None', 'CenterLineWidth', 0, 'SwarmMarkerSize', marker_size)
-        x = x + 1;
-    end
-
-    set(gca, 'XLim', [.5 3.5], ...
-             'XTick', [1:3], ...
-             'XTickLabels', xl(yv), ...
-             'YLim', [-1 1])
-    ylabel('Correlation (r)')
-
-% Vpp
-axes('Position', [ax_x_val(2), ax_y_val, ax_size_x, ax_size_y]); hold on; title 'V_{pp}'
-    x = 1;
-    yv = [1,3,4];
-    for y = yv
-        Swarm(x, squeeze(corr_rs(2, y, :)), 'SwarmColor', colors, ...
-            'DistributionMethod', 'None', 'CenterLineWidth', 0, 'SwarmMarkerSize', marker_size)
-        x = x + 1;
-    end
-
-    set(gca, 'XLim', [.5 3.5], ...
-             'XTick', [1:3], ...
-             'XTickLabels', xl(yv), ...
-             'YLim', [-1 1], ...
-             'YTickLabels', {})
-
-% V_inter
-axes('Position', [ax_x_val(3), ax_y_val, ax_size_x, ax_size_y]); hold on; title 'V_{inter}'
-    x = 1;
-    yv = [1,2,4];
-    for y = yv
-        Swarm(x, squeeze(corr_rs(3, y, :)), 'SwarmColor', colors, ...
-            'DistributionMethod', 'None', 'CenterLineWidth', 0, 'SwarmMarkerSize', marker_size)
-        x = x + 1;
-    end
-
-    set(gca, 'XLim', [.5 3.5], ...
-             'XTick', [1:3], ...
-             'XTickLabels', xl(yv), ...
-             'YLim', [-1 1], ...
-             'YTickLabels', {})
-
-% DT
-axes('Position', [ax_x_val(4), ax_y_val, ax_size_x, ax_size_y]); hold on; title 'dDT'
-    x = 1;
-    yv = [1:3];
-    for y = yv
-        Swarm(x, squeeze(corr_rs(4, y, :)), 'SwarmColor', colors, ...
-            'DistributionMethod', 'None', 'CenterLineWidth', 0, 'SwarmMarkerSize', marker_size)
-        x = x + 1;
-    end
-
-    set(gca, 'XLim', [.5 3.5], ...
-             'XTick', [1:3], ...
-             'XTickLabels', xl(yv), ...
-             'YLim', [-1 1], ...
-             'YTickLabels', {})
+titles = {sprintf('%sSNR', GetUnicodeChar('Delta')), ...
+          sprintf('%sV_{pp}', GetUnicodeChar('Delta')), ...
+          sprintf('%sV_{inter}', GetUnicodeChar('Delta')), ...
+          sprintf('%sDT', GetUnicodeChar('Delta'))};
+yv = [1:4];
+for ax = 1:4
+    axes('Position', [ax_x_val(ax), ax_y_val, ax_size_x, ax_size_y]); hold on
+    yv_ax = yv(yv ~= ax);
+    sig_cor_plot(corr_rs(ax, yv_ax,:), corr_ps(ax, yv_ax,:), colors)
     
-
+    % Format
+    title(titles{ax})
+    if ax == 1
+        set(gca, 'XTickLabels', titles(yv_ax))
+        ylabel('Correlation (r)')
+    else
+        set(gca, 'XTickLabels', titles(yv_ax), 'YTickLabels', {})
+    end
+end
 
 shg
 
-%%
 
-clf;
-for pi = 1:num_subjects-1
-    subplot(1,num_subjects-1,pi); hold on
-    imagesc(corr_rs(:,:,pi), 'AlphaData', r_mask)
-    set(gca, 'CLim', [-1 1], ...
-             'XTick', [1:4], ...
-             'YTick', [1:4], ...
-             'XTickLabel', xl, ...
-             'YTickLabel', xl, ...
-             'XLim', [.5, 4.5], ...
-             'YLim', [.5, 4.5], ...
-             'Box', 'on', ...
-             'Color', [.8 .8 .8])
-    if pi > 1
-        set(gca, 'YTickLabel', {})
-    end
+%% Helper functions
+function sig_cor_plot(r,p, color)
+    % Collapse dimensions for easier indexing (v X participant)
+    r = squeeze(r);
+    p = squeeze(p);
 
-    for x = 1:4
-        for y = 1:4
-            if y <= x
-                continue
+    % Plot 0-line
+    plot([.5 size(r,1) + .5], [0,0], 'Color', [.6 .6 .6], 'LineStyle', '--')
+
+    for i = 1:size(r,1)
+        for j = 1:size(r,2)
+            if p(i,j) < 0.05
+                fc = color(j,:);
+            else
+                fc = [1,1,1];
             end
-            text(y,x, sprintf("r = %0.2f\n%s", corr_rs(x,y,pi), pStr(corr_ps(x,y,pi))), ...
-                'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle')
+            scatter(i, r(i,j), 60, 'MarkerEdgeColor', color(j,:), ...
+                    'MarkerFaceColor', fc, 'LineWidth', 2)
         end
     end
 
+    set(gca, 'XLim', [.5 size(r,1) + .5], ...
+             'XTick', [1:size(r,1)], ...
+             'YLim', [-1 1])
+
 end
-
-ColorbarLegend(gcf(), [.95 .125 .025 .81], parula(), 'vert', [-1 1])
-
-shg

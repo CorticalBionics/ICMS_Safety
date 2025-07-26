@@ -9,7 +9,6 @@ load(fullfile(DataPath, '..', 'BCI_HistoricalSurvey', 'ProcessedData', 'SurveyDa
 % subject_list = cellfun(@(c) c(1:5), subject_list, 'UniformOutput', false);
 [subject_list_alt, num_subjects] = GetSubjectList(true);
 num_channels = 64;
-t_max = 80; % Threshold over which to assume disabled
 
 % Thick palm
 [~, palmar_template, ~, ~] = GetHandMasks();
@@ -87,6 +86,8 @@ ax(3) = axes('Position', [ax_xs(3), ax_ys(3), ax_w, ax_h]); hold on
         plot(x, y, 'Color', SubjectColors(subject_list_alt{s}), 'LineWidth', 2)
         scatter(x,y, 20, 'MarkerEdgeColor', SubjectColors(subject_list_alt{s}), 'MarkerFaceColor', 'w', ...
             'LineWidth', 2, 'MarkerFaceAlpha', 1)
+        % Print the remaining percent for each
+        fprintf("Pct of max = %0.1f\n", y(end)/max(y)*100)
     end
     ylabel('p(Functional Electrodes)')
     xlabel('Years from Implant')
@@ -304,7 +305,7 @@ return
 
 %% Supplementary Figure 3
 [ax_w, ax_xs] = GetAxisCoords(3, .1, .075);
-[ax_h, ax_ys] = GetAxisCoords(2, .1, .1); ax_ys(2) = ax_ys(2) + .05;
+[ax_h, ax_ys] = GetAxisCoords(2, .125, .1); ax_ys(2) = ax_ys(2) + .025;
 
 xt10 = [0:10];
 xtl10 = sparse_xticklabels(xt10);

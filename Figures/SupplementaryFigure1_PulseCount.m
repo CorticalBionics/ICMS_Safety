@@ -114,8 +114,14 @@ for pi = 1:num_subjects
     axes('Position', [xs ax_val(pi) xw yh], 'DataAspectRatio', [1 1 1]); hold on
     % Get pulses for per subject
     s_idx = strcmp(VMData.Subject, subject_list(pi));
+    % Get time
+    x = VMData.Date(s_idx);
+    % Get pulses
     total_pulses = cat(2, VMData.PulseCount{s_idx});
     total_pulses(total_pulses == 0) = NaN;
+    % Sort and plot
+    [x, xi] = sort(x);
+    total_pulses = total_pulses(:, xi);
     sum_pulses = sum(total_pulses, 2, 'omitnan');
     % Get channel map
     cm = LoadSubjectChannelMap(subject_list{pi});
@@ -191,3 +197,30 @@ AddFigureLabels(all_ax([7:-1:1]), [0.05, 0.025], 66)
 shg
 
 %export_figure3x(FigurePath, 'SuppFig1_PulseCounts')
+
+return
+%% Alt figure version
+clf;
+
+for pi = 1:num_subjects
+    subplot(1,5,pi); hold on
+    % Filter by subject
+    s_idx = strcmp(VMData.Subject, subject_list(pi));
+    % Get time
+    x = VMData.Date(s_idx);
+    % Get pulses
+    total_pulses = cat(2, VMData.PulseCount{s_idx});
+    % total_pulses(total_pulses == 0) = NaN;
+    % Sort and plot
+    [x, xi] = sort(x);
+    total_pulses = total_pulses(:, xi);
+    %%% V1
+    % plot(x, total_pulses, 'Color', [.6 .6 .6])
+    % plot(x, mean(total_pulses, 1, 'omitnan'), 'Color', [.2 .2 .2])
+    %%% V2 (colorful)
+    plot(x, total_pulses)
+    %%% V3 Alphaline
+    % AlphaLine(x, total_pulses, [.6 .6 .6])
+    % h = gca;
+    % h.YLim = [0, h.YLim(2)];
+end

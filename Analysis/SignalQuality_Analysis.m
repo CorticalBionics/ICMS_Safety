@@ -201,6 +201,8 @@ SQAnalysis.total_charge = total_charge;
 
 save(fullfile(DataPath, 'SQ_Analysis'), "SQAnalysis")
 
+%% Compare values at first and last time point
+
 %% Helper functions
 function slope = nan_regression(x, y)
     slope = NaN;

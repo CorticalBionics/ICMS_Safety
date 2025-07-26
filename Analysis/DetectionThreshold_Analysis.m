@@ -38,7 +38,7 @@ end
 
 %% Analyze detection thresholds
 num_channels = 64;
-t_max = 80;
+t_max = 100;
 dw = 250; % Bin width in days
 subj_max_days = zeros(size(DetectionData));
 for i = 1:length(DetectionData)
@@ -54,7 +54,7 @@ for s = 1:num_subjects
     % Format data
     % num_channels = size(DetectionData{s}, 2);
     % Date, threshold, channel
-    [d, t] = deal(cell(num_channels, 1));
+    [d, t, c] = deal(cell(num_channels, 1));
     enabled_channels = NaN(num_channels, length(dx));
     for i = 1:num_channels
         ch_idx = find([DetectionData{s}.Channel] == i);
@@ -63,6 +63,7 @@ for s = 1:num_subjects
         end
         d{i} = DetectionData{s}(ch_idx).DateFromImplant;
         t{i} = DetectionData{s}(ch_idx).Threshold;
+        c{i} = repelem(i, length(t{i}));
         
         % Find threshold for each bin
         for j = 1:length(dx)
@@ -92,29 +93,33 @@ for s = 1:num_subjects
     % Vectorize
     d = cat(2, d{:});
     t = round(cat(2, t{:}));
+    c = cat(2, c{:});
 
     % Sort and find time to first sensation
     [~, sort_idx] = sort(d);
     d = d(sort_idx);
     t = t(sort_idx);
+    c = c(sort_idx);
     ttfs_idx = find(~isnan(t) & ~isinf(t) & t < t_max, 1, 'first');
     fprintf('%s\n', subject_list_alt{s})
     fprintf('\tTime to first sensation: %d\n', d(ttfs_idx))
     
     % Discretize
-    dv = cell(size(dx)); % Thresholds in each bin
-    for i = 1:length(dx)
-        idx = d > de(i) & d <= de(i+1);
-        if sum(idx) < 5 % Only add to bin if at least 5 observations
-            continue
+    dv = NaN(num_channels, length(dx)); % Thresholds in each bin
+    for i = 1:term_idx(s)
+        for ch = 1:num_channels
+            d_idx = d > de(i) & d <= de(i+1); % Matching date range
+            ch_idx = c == ch; % Matching channel
+            idx = d_idx & ch_idx; % Both
+            if ~any(idx)
+                continue
+            end
+            dv(ch,i) = median(t(idx));
         end
-        dv{i} = t(idx);
-        dv{i}(isinf(dv{i})) = NaN;
     end
+    % Remove infs
+    dv(isinf(dv)) = NaN;
     discretized_thresholds{s} = dv;
-
-    % Print medial starting threshold for each participant
-    fprintf('\tMedian starting DT: %0.1f\n', median(discretized_thresholds{s}{1}, 'omitnan'))
 end
 
 %% Make struct and export
