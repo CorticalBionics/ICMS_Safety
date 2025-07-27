@@ -32,7 +32,7 @@ ax_y_val = ax_y_val + 0.03; ax_y_val = flipud(ax_y_val);
 marker_size = 5;
 
 sensory_color = rgb(52, 152, 219); % Peterriver
-motor_color = rgb(52, 73, 94); % Wetasphalt
+motor_color = rgb(46, 63, 79); % Wetasphalt
 
 clf;
 set(gcf, 'Units', 'Inches', 'Position', [1, 1, 6.45, 7.5]);
@@ -98,7 +98,7 @@ for p = 1:num_subjects
         if p == round(num_subjects / 2)
             ylabel(sprintf('Vpp (%sV)', GetUnicodeChar('mu')), 'FontWeight', 'bold')
         elseif p == num_subjects
-            xlabel('Years Implanted', 'FontWeight', 'bold')
+            xlabel('Years Post Implant', 'FontWeight', 'bold')
         end
 
     % Cleaning
@@ -319,14 +319,16 @@ for j = 1:3
                'XTickLabel', ColorText(subject_list, SubjectColors(subject_list)))
 end
 
-% Add each participant's data to each plot
+% Plot and assign data to cell for ANOVA
+[snr, vpp, cln, dt] = deal(cell(num_subjects, 1));
 i = 1;
-for pi = 1:5
+for pi = 1:num_subjects
     % Get last time point
     xmax = DetectionAnalysis.term_idx(pi);
     
     % Get functional indices for first and last time point
     dt_idx_end = DetectionAnalysis.disabled_electrodes{pi}(:,DetectionAnalysis.term_idx(pi));
+    dt{pi} = dt_idx_end;
     
     % Get median SQ metrics for first and last time point
     sm = SQAnalysis.sensory_masks{pi};
@@ -338,9 +340,11 @@ for pi = 1:5
     y_snr = cat(1, SQData(pi).signal_quality_analysis.ch_snr);
     y_snr = 10.^(y_snr./20); % Undo log scaling
     y_snr_end = median(y_snr(sqx_idx_end, sm), 1, 'omitnan');
+    snr{pi} = y_snr_end;
     % Vpp
     y_vpp = cat(1, SQData(pi).signal_quality_analysis.ch_vpp); % Same x as SNR
     y_vpp_end = median(y_vpp(sqx_idx_end, sm), 1, 'omitnan');
+    vpp{pi} = y_vpp_end;
 
 
     % V_inter
@@ -352,6 +356,7 @@ for pi = 1:5
     y_cln = cat(2, [cleaning_data{pi}(idx).vinter]);
     y_cln(y_cln < -1.5) = NaN; % Disconnected channels
     y_cln_end = median(y_cln(:, clnx_idx_end), 2, 'omitnan');
+    cln{pi} = y_cln_end;
 
     % Add data
     % SNR
@@ -379,12 +384,24 @@ ylabel(ax(1), 'SNR')
 ylabel(ax(2), sprintf('Vpp (%sv)', GetUnicodeChar('mu')))
 ylabel(ax(3), sprintf('V_{inter} (%sv)', GetUnicodeChar('mu')))
 
+text(1, 1.5, 'Detectable', 'Rotation', 90, 'HorizontalAlignment','left', 'VerticalAlignment', 'middle', 'Parent', ax(1))
+text(2.2, 1.5, 'Undetectable', 'Rotation', 90, 'HorizontalAlignment','left', 'VerticalAlignment', 'middle', 'Parent', ax(1))
+
 AddFigureLabels(gcf(), [.05, 0])
 % export_figure3x(FigurePath, 'SuppFig6_SQ_DT')
 
 shg
 
+%% ANOVA on data
+snr = cat(1, snr{:})';
+vpp = cat(1, vpp{:})';
+cln = cat(2, cln{:});
+dt = cat(2, dt{:});
+prt = repmat([1:5], 64, 1);
 
+snr_anova = anovan(snr(:), {dt(:), prt(:)}, 'varnames', {'Detectable', 'Participant'});
+vpp_anova = anovan(vpp(:), {dt(:), prt(:)}, 'varnames', {'Detectable', 'Participant'});
+cln_anova = anovan(cln(:), {dt(:), prt(:)}, 'varnames', {'Detectable', 'Participant'});
 
 
 %% Helper functions

@@ -25,7 +25,7 @@ clf;
 clearvars ax
 
 sensory_color = rgb(52, 152, 219); % Peterriver
-motor_color = rgb(52, 73, 94); % Wetasphalt
+motor_color = rgb(46, 63, 79); % Wetasphalt
 
 set(gcf, 'Units', 'Inches', 'Position', [1 1 6.4 6.5])
 [ax_w, ax_xs] = GetAxisCoords(3, .1, .05); ax_xs = ax_xs + .025;
