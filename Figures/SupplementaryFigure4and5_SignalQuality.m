@@ -4,6 +4,27 @@ load(fullfile(DataPath, 'DT_Analysis'));
 load(fullfile(DataPath, "VMData_All.mat"), 'total_charge')
 [subject_list, num_subjects] = GetSubjectList(true);
 
+% Load SQData and process VM data
+flist = dir(fullfile(DataPath, 'SignalQuality', '*.mat'));
+SQData = cell(num_subjects, 1);
+implant_dates = NaT(num_subjects, 1);
+for pi = 1:num_subjects
+    % Load SQ Data
+    SQData{pi} = load(fullfile(DataPath, 'SignalQuality', flist(pi).name));
+    SQData{pi}.participant = flist(pi).name(1:5);
+    implant_dates(pi) = datetime(SQData{pi}.implant_metadata.implant_date, 'Format', 'dd-MMM-uuuu');
+end
+SQData = cat(1, SQData{:});
+
+% Load cleaning data
+load(fullfile(DataPath, 'CleaningData'));
+% Remove data from before 14-Aug-2017 (different monitoring system)
+min_date = datetime(736920, 'ConvertFrom', 'datenum');
+for p = 1:num_subjects
+    idx = [cleaning_data{p}.date] > min_date;
+    cleaning_data{p} = cleaning_data{p}(idx); %#ok<SAGROW>
+end
+
 %% Supplementary Figure 4
 [ax_size_y, ax_y_val] = GetAxisCoords(num_subjects, 0.04, 0.05);
 ax_y_val = ax_y_val + 0.03; ax_y_val = flipud(ax_y_val);
@@ -130,6 +151,7 @@ clf;
 set(gcf, 'Units', 'Inches', 'Position', [1, 1, 6.45, 8]);
 SetFont('Arial', 9)
 marker_size = 10;
+prctile_mask = [5, 95];
 
 clearvars ax
 % Create axes
@@ -142,8 +164,8 @@ for p = 1:num_subjects
     end
 end
 
-prctile_mask = [5, 95];
 
+h = gcf;
 o = length(h.Children) + 1;
 for pi = 1:num_subjects
     x = total_charge(pi, :)';
@@ -199,7 +221,6 @@ end
 xlabel(ax(2), 'Charge per Electrode (mC)', 'FontWeight', 'bold')
 
 % Add text values after correction
-h = gcf;
 o = length(h.Children) + 1;
 for i = 1:num_subjects
     title(ax(o-3), ColorText(subject_list(i), SubjectColors(subject_list(i))));
@@ -255,17 +276,17 @@ corr_ps = HolmBonferroni(corr_ps);
 % Reflect the ps values after HBPHC
 corr_ps = mean(cat(4, corr_ps, permute(corr_ps, [2,1,3])), 4, 'omitnan');
 
-%% Split electrodes by metric and dt
-
 
 %% Supplementary Figure 6
-[ax_size_x, ax_x_val] = GetAxisCoords(4, 0.05, 0.1);
-[ax_size_y, ax_y_val] = GetAxisCoords(1, 0.3, 0.15);
-ax_y_val = ax_y_val + 0.05;
+[ax_size_y, ax_y_val] = GetAxisCoords(2, 0.15, 0.1);
+% ax_y_val = ax_y_val + 0.05;
 
 clf;
-set(gcf, 'Units', 'Inches', 'Position', [1, 1, 12, 4]);
-SetFont('Arial', 18)
+set(gcf, 'Units', 'Inches', 'Position', [27, 1, 6.45, 4.5]);
+SetFont('Arial', 9)
+
+% Pairwise correlation dot plots
+[ax_size_x, ax_x_val] = GetAxisCoords(4, 0.05, 0.075);
 
 colors = SubjectColors(subject_list);
 titles = {sprintf('%sSNR', GetUnicodeChar('Delta')), ...
@@ -274,7 +295,7 @@ titles = {sprintf('%sSNR', GetUnicodeChar('Delta')), ...
           sprintf('%sDT', GetUnicodeChar('Delta'))};
 yv = [1:4];
 for ax = 1:4
-    axes('Position', [ax_x_val(ax), ax_y_val, ax_size_x, ax_size_y]); hold on
+    axes('Position', [ax_x_val(ax), ax_y_val(2), ax_size_x, ax_size_y]); hold on
     yv_ax = yv(yv ~= ax);
     sig_cor_plot(corr_rs(ax, yv_ax,:), corr_ps(ax, yv_ax,:), colors)
     
@@ -288,7 +309,82 @@ for ax = 1:4
     end
 end
 
+% Metric detection plots
+[ax_size_x, ax_x_val] = GetAxisCoords(3, 0.1, 0.075);
+clearvars ax
+% Create axes
+for j = 1:3
+    ax(j) = axes('Position', [ax_x_val(j), ax_y_val(1), ax_size_x, ax_size_y]); hold on
+    set(ax(j), 'XTick', [1.5:3:14.5], ...
+               'XTickLabel', ColorText(subject_list, SubjectColors(subject_list)))
+end
+
+% Add each participant's data to each plot
+i = 1;
+for pi = 1:5
+    % Get last time point
+    xmax = DetectionAnalysis.term_idx(pi);
+    
+    % Get functional indices for first and last time point
+    dt_idx_end = DetectionAnalysis.disabled_electrodes{pi}(:,DetectionAnalysis.term_idx(pi));
+    
+    % Get median SQ metrics for first and last time point
+    sm = SQAnalysis.sensory_masks{pi};
+    x = datetime(num2str(SQData(pi).session_dates'), 'Format', 'yyyyMMdd');
+    x = days(x - implant_dates(pi));
+    sqx_idx_end = x-max(x) >= -dt_xbin; % Last time bin
+    
+    % SNR
+    y_snr = cat(1, SQData(pi).signal_quality_analysis.ch_snr);
+    y_snr = 10.^(y_snr./20); % Undo log scaling
+    y_snr_end = median(y_snr(sqx_idx_end, sm), 1, 'omitnan');
+    % Vpp
+    y_vpp = cat(1, SQData(pi).signal_quality_analysis.ch_vpp); % Same x as SNR
+    y_vpp_end = median(y_vpp(sqx_idx_end, sm), 1, 'omitnan');
+
+
+    % V_inter
+    idx = cellfun(@(c) ~isempty(c), {cleaning_data{pi}.vmin});
+    x = [cleaning_data{pi}(idx).date];
+    x = days(x - implant_dates(pi));
+    clnx_idx_end = x-max(x) >= -dt_xbin; % Last time bin
+
+    y_cln = cat(2, [cleaning_data{pi}(idx).vinter]);
+    y_cln(y_cln < -1.5) = NaN; % Disconnected channels
+    y_cln_end = median(y_cln(:, clnx_idx_end), 2, 'omitnan');
+
+    % Add data
+    % SNR
+    Swarm(i, y_snr_end(dt_idx_end), colors(pi,:), ...
+        'DS', 'none', 'Parent', ax(1), 'DS', 'Box', 'SPL', 0)
+    Swarm(i+1, y_snr_end(~dt_idx_end), colors(pi,:), ...
+        'DS', 'none', 'Parent', ax(1), 'SFA', 0, 'DS', 'Box', 'SPL', 0, 'DFA', 0)
+    % Vpp
+    Swarm(i, y_vpp_end(dt_idx_end), colors(pi,:), ...
+        'DS', 'none', 'Parent', ax(2), 'DS', 'Box', 'SPL', 0)
+    Swarm(i+1, y_vpp_end(~dt_idx_end), colors(pi,:), ...
+        'DS', 'none', 'Parent', ax(2), 'SFA', 0, 'DS', 'Box', 'SPL', 0, 'DFA', 0)
+    % Cln
+    Swarm(i, y_cln_end(dt_idx_end), colors(pi,:), ...
+        'DS', 'none', 'Parent', ax(3), 'DS', 'Box', 'SPL', 0)
+    Swarm(i+1, y_cln_end(~dt_idx_end), colors(pi,:), ...
+        'DS', 'none', 'Parent', ax(3), 'SFA', 0, 'DS', 'Box', 'SPL', 0, 'DFA', 0)
+    
+    % Increment x
+    i = i + 3;
+end
+
+% Formatting
+ylabel(ax(1), 'SNR')
+ylabel(ax(2), sprintf('Vpp (%sv)', GetUnicodeChar('mu')))
+ylabel(ax(3), sprintf('V_{inter} (%sv)', GetUnicodeChar('mu')))
+
+AddFigureLabels(gcf(), [.05, 0])
+% export_figure3x(FigurePath, 'SuppFig6_SQ_DT')
+
 shg
+
+
 
 
 %% Helper functions
@@ -307,8 +403,8 @@ function sig_cor_plot(r,p, color)
             else
                 fc = [1,1,1];
             end
-            scatter(i, r(i,j), 60, 'MarkerEdgeColor', color(j,:), ...
-                    'MarkerFaceColor', fc, 'LineWidth', 2)
+            scatter(i, r(i,j), 30, 'MarkerEdgeColor', color(j,:), ...
+                    'MarkerFaceColor', fc, 'LineWidth', 1.5)
         end
     end
 

@@ -146,7 +146,6 @@ SQAnalysis.motor_masks = motor_masks;
 SQAnalysis.sensory_masks = sensory_masks;
 
 
-
 %% Compare values with charge delivered
 % Correlate SNR/VPP/Cleaning with VMData on sensory arrays
 [SNR_charge_r, SNR_charge_rp, Vpp_charge_r, Vpp_charge_rp, vinter_charge_r, vinter_charge_rp, ...
@@ -201,7 +200,6 @@ SQAnalysis.total_charge = total_charge;
 
 save(fullfile(DataPath, 'SQ_Analysis'), "SQAnalysis")
 
-%% Compare values at first and last time point
 
 %% Helper functions
 function slope = nan_regression(x, y)
