@@ -5,6 +5,7 @@ addpath(genpath("P:\users\tgh28\ChartWithCharles")); %For progress bar
 %Set Up Folders
 data_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_data_combined";
 output_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\cleaning_data2";
+override = false;
 
 % Count the number of pulses
 
@@ -42,7 +43,7 @@ for f = 1:length(flist) %f = 20 Weird wwaveforms
     % Try to find mat file and get date
     expected_fname = flist(f).name;
 
-    if isfile(fullfile(output_path, expected_fname)) %Skip if it already has been done
+    if isfile(fullfile(output_path, expected_fname)) & ~override %Skip if it already has been done
         continue
 
     elseif isfile(fullfile(data_path, expected_fname))

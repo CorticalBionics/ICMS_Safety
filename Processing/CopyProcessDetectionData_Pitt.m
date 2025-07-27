@@ -103,7 +103,7 @@ for s = 1:size(subject_session,1)
 
             % Table when using new detection tab
             elseif strcmp(OLSData(set).DataType, 'DetectionV2Data')
-                if isempty(OLSData(set).SDO(1).DetectionParadigm)
+                if isempty(OLSData(set).SDO(1).DetectionParadigm) || isempty(OLSData(set_idx).SDO(1).DetectionParadigm)
                     continue
                 end
                 for t = 1:size(OLSData(set).SDO,1)
@@ -132,18 +132,32 @@ for s = 1:size(subject_session,1)
         data_added(s) = true;
     end
 end
-%%
+%% Combine data across subjects
+data_added = true(size(subject_session,1),1);
 if any(data_added)
-    todays_date = datenum(datetime('today'));
     for s = 1:size(subject_session,1)
         if ~data_added(s)
             continue % Only update subjects that have new data
         end
         % Make structs
-        RawDetectionData = struct('Subject', [], 'Session', [], 'Set', [], 'Channel', [], 'Date', [],...
-                                      'ResponseTable', [], 'Threshold', [], 'Method', []);
-        ProcessedDetectionData = struct('Subject', [], 'Channel', [], 'Dates', [], 'Thresholds', [], 'MeanThreshold', [],...
-                               'StdThreshold', [], 'LastThreshold', [], 'TestedLast90Days', []);
+        RawDetectionData = struct('Subject', [], ...
+                                  'Session', [], ...
+                                  'Set', [], ...
+                                  'Channel', [], ...
+                                  'Date', [],...
+                                  'ResponseTable', [],...
+                                  'Threshold', [], ...
+                                  'Method', []);
+
+        ProcessedDetectionData = struct('Subject', [], ...
+                                        'Channel', [], ...
+                                        'Dates', [], ...
+                                        'Thresholds', [], ...
+                                        'MeanThreshold', [],...
+                                        'StdThreshold', [], ...
+                                        'LastThreshold', [], ...
+                                        'TestedLast90Days', []);
+
         subject_session_data = dir(fullfile(target_folder, subject_session{s,1}));
         subj_ols_string = sprintf('OLSData_%s', subject_session{s,1});
         % Concatenate all the data
@@ -152,18 +166,32 @@ if any(data_added)
             if ~contains(subject_session_data(i).name, subj_ols_string)
                 continue
             end
-            % Will load OLS Data
+            % Load OLS Data
             load(fullfile(target_folder, subject_session{s,1}, subject_session_data(i).name))
-            if ~isfield(OLSData, 'Method') % Empty sessions that were copied
-                continue
+            % Remove extra fields
+            fn = {'Paradigm', 'TestLogComments', 'VMData'};
+            for f = 1:length(fn)
+                if any(strcmp(fieldnames(OLSData), fn{f}))
+                    OLSData = rmfield(OLSData, fn{f});
+                end
             end
-            RawDetectionData(size(RawDetectionData,1):size(RawDetectionData,1)+length(OLSData)-1,1) = OLSData;
+            % Orient structure
+            if size(OLSData,2) > size(OLSData,1)
+                OLSData = OLSData'; 
+            end
+            % Only add ones with the 'Method' and 'ResponseTable' fields as these were formatted properly
+            if any(strcmp(fieldnames(OLSData), 'Method')) && any(strcmp(fieldnames(OLSData), 'ResponseTable'))
+                RawDetectionData(size(RawDetectionData,1):size(RawDetectionData,1)+size(OLSData,1)-1,1) = OLSData;
+            else
+                warning(fullfile(target_folder, subject_session{s,1}, subject_session_data(i).name))
+            end
         end
         % Remove empties
         RawDetectionData = RawDetectionData(~cellfun(@isempty, {RawDetectionData.Date}) &...
                                                     ~cellfun(@isempty, {RawDetectionData.Threshold}) &...
                                                     ~strcmp({RawDetectionData.Threshold}, 'undetermined'));
-        % Fix floor and ceiling errors
+        
+        % Fix floor and ceiling issues
         char_idx = cellfun(@ischar, {RawDetectionData.Threshold});
         lesser_idx = contains({RawDetectionData(char_idx).Threshold}, '<');
         if any(lesser_idx)
@@ -179,41 +207,12 @@ if any(data_added)
             zero_idx = find(char_idx);
             zero_idx = zero_idx(greater_idx);
             for j = 1:length(zero_idx)
-                RawDetectionData(zero_idx(j)).Threshold = 100;
+                RawDetectionData(zero_idx(j)).Threshold = Inf; % Above == Inf
             end
         end
         
         % Save the raw data
         save(fullfile(target_folder, subject_session{s,1}, sprintf('DetectionDataRaw_%s.mat', subject_session{s,1})), 'RawDetectionData')
-
-        % Process it by channel
-        u_channels = unique([RawDetectionData.Channel]);
-        for c = 1:length(u_channels)
-            channel_idx = find([RawDetectionData.Channel] == u_channels(c) & ...
-                               ~cellfun(@isempty, {RawDetectionData.Date}) & ...
-                               ~cellfun(@(c) strcmp(c, 'Null'), {RawDetectionData.Date}));
-            % This should already be sorted but just in case
-            [dates, sort_idx] = sort(cellfun(@datenum, {RawDetectionData(channel_idx).Date}, 'UniformOutput', true)); 
-            channel_idx_sorted = channel_idx(sort_idx);
-            % Assign to struct
-            ProcessedDetectionData(c).Subject = subject_session{s,1};
-            ProcessedDetectionData(c).Channel = u_channels(c);
-            ProcessedDetectionData(c).Dates = {RawDetectionData(channel_idx_sorted).Date};
-            ProcessedDetectionData(c).Thresholds = [RawDetectionData(channel_idx_sorted).Threshold];
-            ProcessedDetectionData(c).MeanThreshold = mean(ProcessedDetectionData(c).Thresholds);
-            ProcessedDetectionData(c).StdThreshold = std(ProcessedDetectionData(c).Thresholds);
-            ProcessedDetectionData(c).LastThreshold = ProcessedDetectionData(c).Thresholds(end);
-            if todays_date - dates(end) < 90
-                ProcessedDetectionData(c).TestedLast90Days = true;
-            else
-                ProcessedDetectionData(c).TestedLast90Days = false;
-            end
-        end
-
-        % Save the processed data
-        save(fullfile(target_folder, subject_session{s,1}, sprintf('DetectionDataProcessed_%s.mat', subject_session{s,1})), 'ProcessedDetectionData')
     end
 end
-
-
 
