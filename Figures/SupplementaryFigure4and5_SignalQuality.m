@@ -278,6 +278,7 @@ corr_ps = mean(cat(4, corr_ps, permute(corr_ps, [2,1,3])), 4, 'omitnan');
 
 
 %% Supplementary Figure 6
+dt_xbin = 250;
 [ax_size_y, ax_y_val] = GetAxisCoords(2, 0.15, 0.1);
 % ax_y_val = ax_y_val + 0.05;
 
