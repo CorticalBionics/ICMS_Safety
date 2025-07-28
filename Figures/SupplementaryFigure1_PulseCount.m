@@ -152,7 +152,8 @@ end
 
 % Colorbar
 c = ColorbarLegend(gcf, [xs+0.07 ax_val(end)-0.02 0.155 0.01], cmap, 'Horz', [0 1]);
-x = xlabel('p(Pulses)', 'VerticalAlignment', 'bottom');
+c.XTickLabel = {'0', 'Max'};
+x = xlabel('# Pulses', 'VerticalAlignment', 'bottom');
 
 % Summary statistics
 xs = 0.74; xw = 0.225;

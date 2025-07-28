@@ -19,15 +19,8 @@ num_perms = 1e3;
 % Discretize and compute naturalness and quality frequency per year
 for i = 1:num_subjects
     % Discretize to years
-    % Get implant date
-    if startsWith(subject_list{i}, 'BCI')
-        subj_config = cc.load_config.participant(subject_list{i}, 'chicago');
-    else
-        subj_config = cc.load_config.participant(subject_list{i}, 'pitt');
-    end
-    implant_date = datetime(subj_config.implant_date, "InputFormat", "uuuu-MM-dd");
 
-    y = years(QualityData(i).Responses.Date - implant_date);
+    y = [QualityData(i).Responses.Date] ./ 365;
     y_max = ceil(max(y));
     % Filter for any responses
     any_resp = any(QualityData(i).Responses{:,3:end} > 0, 2);

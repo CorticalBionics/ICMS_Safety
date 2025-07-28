@@ -5,27 +5,13 @@
 load(fullfile(DataPath, "VMData_All.mat"));
 
 % Get list of SQ data
-flist = dir(fullfile(DataPath, 'SignalQuality', '*.mat'));
-SQData = cell(num_subjects, 1);
+load(fullfile(DataPath, "SignalQuality.mat"));
 
 % Load cleaning data
 load(fullfile(DataPath, 'CleaningData'));
 % Remove data from before 14-Aug-2017 (different monitoring system)
-min_date = datetime(736920, 'ConvertFrom', 'datenum');
-for p = 1:num_subjects
-    idx = [cleaning_data{p}.date] > min_date;
-    cleaning_data{p} = cleaning_data{p}(idx); %#ok<SAGROW>
-end
-
-% Load SQData and process VM data
-implant_dates = NaT(num_subjects, 1);
-for pi = 1:num_subjects
-    % Load SQ Data
-    SQData{pi} = load(fullfile(DataPath, 'SignalQuality', flist(pi).name));
-    SQData{pi}.participant = flist(pi).name(1:5);
-    implant_dates(pi) = datetime(SQData{pi}.implant_metadata.implant_date, 'Format', 'dd-MMM-uuuu');
-end
-SQData = cat(1, SQData{:});
+idx = [cleaning_data{3}.date] > 832; % Relative number of days after implant
+cleaning_data{3} = cleaning_data{3}(idx);
 
 % Load Detection threshold data
 load(fullfile(DataPath, 'DT_Analysis'));
@@ -53,8 +39,7 @@ for pi = 1:num_subjects
     motor_masks{pi} = motor_mask;
 
     %%% SNR
-    x = datetime(num2str(SQData(pi).session_dates'), 'Format', 'yyyyMMdd');
-    x = years(x - implant_dates(pi));
+    x = SQData(pi).session_dates ./ 365;
     sq_dates{pi} = x;
     y = cat(1, SQData(pi).signal_quality_analysis.ch_snr);
     y_snr = 10.^(y./20); % Undo log scaling
@@ -92,7 +77,7 @@ for pi = 1:num_subjects
     %%% Cleaning
     idx = cellfun(@(c) ~isempty(c), {cleaning_data{pi}.vmin});
     x = [cleaning_data{pi}(idx).date];
-    x = years(x - implant_dates(pi));
+    x = x ./ 265;
     cln_dates{pi} = x';
     y = cat(2, [cleaning_data{pi}(idx).vinter]);
     y(y < -1.5) = NaN; % Disconnected channels

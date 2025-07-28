@@ -1,17 +1,11 @@
 load(fullfile(DataPath, 'CleaningData'));
 load(fullfile(DataPath, 'VMData_All.mat')); 
-VMData = data; clearvars data
-u_part = {'BCI02', 'BCI03', 'CRS02', 'CRS07', 'CRS08'};
-subjects = {'C1', 'C2', 'P2', 'P3', 'P4'};
-num_part = length(u_part);
+[subject_list, num_part] = GetSubjectList(true);
 num_channels = 64;
 
-% Remove data from before 14-Aug-2017 (different monitoring system)
-% min_date = datetime(736920, 'ConvertFrom', 'datenum');
-% for p = 1:num_part
-%     idx = [cleaning_data{p}.date] > min_date;
-%     cleaning_data{p} = cleaning_data{p}(idx); %#ok<SAGROW>
-% end
+% Remove data from the first two years from P2 (different monitoring system)
+idx = [cleaning_data{3}.date] > 832; % Relative number of days after implant
+cleaning_data{3} = cleaning_data{3}(idx);
 
 %% ANOVA on interphase voltages
 % N-way ANOVA: participant X time (since implant) X electrode
@@ -28,17 +22,6 @@ for p = 1:num_part
     g1{p} = tg1(:);
     % time = x - xmin
     tg2 = repmat(x, size(ty,1), 1);
-    if contains(u_part{p}, 'BCI')
-        site = 'chicago';
-    elseif contains(u_part{p}, 'CRS')
-        site = 'pitt';
-    end
-    if strcmp(u_part{p}, 'CRS02')
-        id = datetime(cc.load_config.participant('CRS02b', site).implant_date, 'InputFormat','uuuu-MM-dd');
-    else
-        id = datetime(cc.load_config.participant(u_part{p}, site).implant_date, 'InputFormat','uuuu-MM-dd');
-    end
-    tg2 = days(tg2 - id);
     g2{p} = tg2(:);
     % electrode = 1:64 repmat
     tg3 = repmat([1:64]', 1, size(ty, 2));
@@ -58,7 +41,7 @@ fnames = {'vmax', 'vinter', 'vmin'};
 [r, rp, lin_coeffs] = deal(NaN(64, num_part, 3));
 for p = 1:num_part
     idx = cellfun(@(c) ~isempty(c), {cleaning_data{p}.vmin});
-    x = datenum([cleaning_data{p}(idx).date]); %#ok<DATNM>
+    x = [cleaning_data{p}(idx).date];
     for f = 1:3
         ty = cat(2, [cleaning_data{p}(idx).(fnames{f})]);
         % Correlations of time vs voltage
@@ -86,7 +69,7 @@ for pi = 1:length(u_part)
     all_charge = total_current .*  0.2; % Convert to charge, don't need to convert to millicoulombs
 end
 
-%% Supplementary Figure 3
+%% Plots
 clf;
 h = 3; w = 5;
 yl = [0, .8 ; -1.2, -.2; -2, -1];
@@ -132,7 +115,7 @@ for s = 1:3
     % ylabel('Time X Interphase Correlation')
     set(gca, 'Ylim', [-1 1], ...
              'XTick', [1:5], ...
-             'XTickLabel', ColorText(subjects, SubjectColors(u_part)), ...
+             'XTickLabel', ColorText(subject_list, SubjectColors(u_part)), ...
              'XLim', [.5 5.5])
     if s < 3
         set(gca, 'XTickLabel', {})
@@ -150,7 +133,7 @@ for s = 1:3
     end
     set(gca, 'Ylim', prctile(lin_coeffs(:,:,s), [5, 95], "all"), ...
              'XTick', [1:5], ...
-             'XTickLabel', ColorText(subjects, SubjectColors(u_part)), ...
+             'XTickLabel', ColorText(subject_list, SubjectColors(u_part)), ...
              'XLim', [.5 5.5])
 
     if s < 3
@@ -166,8 +149,6 @@ end
 shg
 
 % export_figure3x(FigurePath, 'SuppFig3_Cleaning')
-%%
-
 
 %% Compare waveforms on two sessions
 p = 1;

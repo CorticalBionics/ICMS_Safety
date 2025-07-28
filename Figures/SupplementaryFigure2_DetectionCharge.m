@@ -4,8 +4,22 @@ load(fullfile(DataPath, 'VMData_All.mat'));
 [subject_list, num_subjects] = GetSubjectList(true);
 num_channels = 64;
 
+
 %% Supplementary Figure 2
 SetFont('Arial', 9)
+
+c1 = rgb(0, 158, 115);
+c2 = rgb(0, 114, 178);
+c3 = rgb(152, 33, 135);
+
+nc = 512;
+cmap1 = [linspace(c1(1), c2(1), nc)',...
+         linspace(c1(2), c2(2), nc)',...
+         linspace(c1(3), c2(3), nc)'];
+cmap2 = [linspace(c2(1), c3(1), nc)',...
+         linspace(c2(2), c3(2), nc)',...
+         linspace(c2(3), c3(3), nc)'];
+cmap_big = [cmap1; cmap2];
 
 clf; 
 set(gcf, 'Units', 'Inches', 'Position', [1, 1, 6.5, 8.5])
@@ -37,7 +51,8 @@ for s = 1:num_subjects
     
     % Sort by color
     [ut, ~, it] = unique(t);
-    cmap = sky(length(ut));
+    idx = round(linspace(1, length(cmap_big), length(ut)));
+    cmap = cmap_big(idx, :);
     for i = 1:length(ut)
         it_idx = it == i;
         x = d(it_idx);
