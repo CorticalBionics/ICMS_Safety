@@ -1,18 +1,9 @@
 % Signal Quality Analysis
 load(fullfile(DataPath, "SQ_Analysis"))
+load(fullfile(DataPath, "SignalQuality"))
 load(fullfile(DataPath, 'DT_Analysis'));
 load(fullfile(DataPath, "VMData_All.mat"), 'total_charge')
 [subject_list, num_subjects] = GetSubjectList(true);
-
-% Load SQData and process VM data
-flist = dir(fullfile(DataPath, 'SignalQuality', '*.mat'));
-SQData = cell(num_subjects, 1);
-for pi = 1:num_subjects
-    % Load SQ Data
-    SQData{pi} = load(fullfile(DataPath, 'SignalQuality', flist(pi).name));
-    SQData{pi}.participant = flist(pi).name(1:5);
-end
-SQData = cat(1, SQData{:});
 
 % Load cleaning data
 load(fullfile(DataPath, 'CleaningData'));
@@ -323,12 +314,12 @@ for pi = 1:num_subjects
     xmax = DetectionAnalysis.term_idx(pi);
     
     % Get functional indices for first and last time point
-    dt_idx_end = DetectionAnalysis.disabled_electrodes{pi}(:,DetectionAnalysis.term_idx(pi));
+    dt_idx_end = DetectionAnalysis.disabled_electrodes{pi}(:,xmax);
     dt{pi} = dt_idx_end;
     
     % Get median SQ metrics for first and last time point
     sm = SQAnalysis.sensory_masks{pi};
-    x = datetime(num2str(SQData(pi).session_dates'), 'Format', 'yyyyMMdd');
+    x = SQData(pi).session_dates;
     sqx_idx_end = x-max(x) >= -dt_xbin; % Last time bin
     
     % SNR
@@ -396,6 +387,46 @@ prt = repmat([1:5], 64, 1);
 snr_anova = anovan(snr(:), {dt(:), prt(:)}, 'varnames', {'Detectable', 'Participant'});
 vpp_anova = anovan(vpp(:), {dt(:), prt(:)}, 'varnames', {'Detectable', 'Participant'});
 cln_anova = anovan(cln(:), {dt(:), prt(:)}, 'varnames', {'Detectable', 'Participant'});
+
+
+%% Supplementary Figure 7
+clf; 
+set(gcf, 'Units', 'Inches', 'Position', [1, 1, 3, 10]);
+SetFont('Arial', 9)
+
+[ax_size_y, ax_y_val] = GetAxisCoords(num_subjects, 0.05, 0.05);
+[ax_size_x, ax_x_val] = GetAxisCoords(1, 0.05, 0.1);
+ax_y_val = flipud(ax_y_val);
+
+for pi = 1:num_subjects
+    axes('Position', [ax_x_val, ax_y_val(pi), ax_size_x, ax_size_y]); hold on
+
+    % Get functional indices for first and last time point
+    dt_idx_1 = DetectionAnalysis.disabled_electrodes{pi}(:,1);
+    dt_idx_end = DetectionAnalysis.disabled_electrodes{pi}(:,DetectionAnalysis.term_idx(pi));
+
+    % Counts
+    Swarm(1, sum(dt_idx_1 & dt_idx_end), SubjectColors(subject_list{pi}), ...
+        'DS', 'Bar', 'SPL', 0)
+    Swarm(2, sum(dt_idx_1 & ~dt_idx_end), SubjectColors(subject_list{pi}), ...
+        'DS', 'Bar', 'SPL', 0)
+    Swarm(3, sum(dt_idx_end & ~dt_idx_1), SubjectColors(subject_list{pi}), ...
+        'DS', 'Bar', 'SPL', 0)
+
+    % Format
+    set(gca, 'XLim', [.5 3.5], ...
+             'YLim', [0 64], ...
+             'XTick', [1:3], ...
+             'YTick', [0:16:64], ...
+             'XTickLabels', {}, ...
+             'TickDir', 'out')
+end
+
+set(gca, 'XTickLabels', {sprintf('1^{st} %s n^{th}', GetUnicodeChar('Union')), ... 
+     '1^{st} ~ n^{th}', 'n^{th} ~ 1^{st}'})
+
+shg
+%export_figure3x(FigurePath, 'SuppFig7_Uggo')
 
 
 %% Helper functions
