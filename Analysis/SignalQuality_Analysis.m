@@ -16,14 +16,24 @@ cleaning_data{3} = cleaning_data{3}(idx);
 % Load Detection threshold data
 load(fullfile(DataPath, 'DT_Analysis'));
 
+% Load impedance data
+load(fullfile(DataPath, 'ImpedanceData'));
+% Remove bad arrays from C1 and C2
+% Anterior motor from C1
+filt = SQData(1).implant_metadata.chan_indices{1};
+ImpedanceData(1).impedances(:,filt) = NaN(length(ImpedanceData(1).dates), length(filt));
+% Posterior sensory from C2
+filt = SQData(2).implant_metadata.chan_indices{4};
+ImpedanceData(2).impedances(:,filt) = NaN(length(ImpedanceData(2).dates), length(filt));
+
 clearvars all_charge s_idx pi
 
 %% Analyze SNR/VPP/Cleaning
-[SNR_r, SNR_rp, SNR_slope, Vpp_r, Vpp_rp, Vpp_slope] = deal(NaN(256, num_subjects));
+[SNR_r, SNR_rp, SNR_slope, Vpp_r, Vpp_rp, Vpp_slope, Imp_r, Imp_rp, Imp_slope] = deal(NaN(256, num_subjects));
 [Cln_r, Cln_rp, Cln_slope] = deal(NaN(64, num_subjects));
-[median_SNR, median_Vpp, median_vinter, sq_dates, cln_dates, motor_masks, sensory_masks] = ...
+[median_SNR, median_Vpp, median_vinter, median_imp, sq_dates, imp_dates, cln_dates, motor_masks, sensory_masks] = ...
     deal(cell(num_subjects, 1));
-[med_SNR_r, med_SNR_p, med_Vpp_r, med_Vpp_p, SNR_slope_p, Vpp_slope_p] = deal(NaN(num_subjects, 2));
+[med_SNR_r, med_SNR_p, med_Vpp_r, med_Vpp_p, SNR_slope_p, Vpp_slope_p, Imp_slope_p] = deal(NaN(num_subjects, 2));
 [med_Cln_r, med_Cln_p, Cln_slope_p] = deal(NaN(num_subjects, 1));
 
 correlation_type = 'spearman';
@@ -38,13 +48,16 @@ for pi = 1:num_subjects
     motor_mask = cat(2, motor_mask{:});
     motor_masks{pi} = motor_mask;
 
-    %%% SNR
+    % Get dates
     x = SQData(pi).session_dates ./ 365;
     sq_dates{pi} = x;
+
+    %%% SNR
     y = cat(1, SQData(pi).signal_quality_analysis.ch_snr);
     y_snr = 10.^(y./20); % Undo log scaling
     %%% Vpp
     y_vpp = cat(1, SQData(pi).signal_quality_analysis.ch_vpp); % Same x as SNR
+    %%% Impedance
     
     % Correlations and slopes
     [SNR_r(:,pi), SNR_rp(:,pi)] = corr(x, y_snr, 'Rows', 'pairwise', 'type', correlation_type);
@@ -72,7 +85,21 @@ for pi = 1:num_subjects
     median_Vpp{pi}.motor = median(y_vpp(:, motor_mask), 2, 'omitnan');
     [med_Vpp_r(pi,1), med_Vpp_p(pi,1)] = corr(x, median_SNR{pi}.sensory, 'Rows', 'complete');
     [med_Vpp_r(pi,2), med_Vpp_p(pi,2)] = corr(x, median_SNR{pi}.motor, 'Rows', 'complete');
-    
+
+    % Impedance
+    x = ImpedanceData(pi).dates ./ 365;
+    imp_dates{pi} = x;
+    y = ImpedanceData(pi).impedances;
+    median_imp{pi}.sensory = median(y(:, sensory_mask), 2, 'omitnan');
+    median_imp{pi}.motor = median(y(:, motor_mask), 2, 'omitnan');
+    % Correlations and slopes
+    [Imp_r(:,pi), Imp_rp(:,pi)] = corr(x, y, 'Rows', 'pairwise', 'type', correlation_type);
+
+    for c = 1:256
+        Imp_slope(c, pi) = nan_regression(x, y(:,c));
+    end
+    Imp_slope_p(pi,1) = signtest(Imp_slope(sensory_mask,pi));
+    Imp_slope_p(pi,2) = signtest(Imp_slope(motor_mask,pi));
 
     %%% Cleaning
     idx = cellfun(@(c) ~isempty(c), {cleaning_data{pi}.vmin});
@@ -101,40 +128,52 @@ med_SNR_p = HolmBonferroni(med_Cln_p);
 SNR_slope_p = HolmBonferroni(SNR_slope_p);
 Vpp_slope_p = HolmBonferroni(Vpp_slope_p);
 Cln_slope_p = HolmBonferroni(Cln_slope_p);
+Imp_slope_p = HolmBonferroni(Imp_slope_p);
 
 % Store in structure and save
 SQAnalysis = struct();
+SQAnalysis.motor_masks = motor_masks;
+SQAnalysis.sensory_masks = sensory_masks;
+% SQ dates
 SQAnalysis.sq_dates = sq_dates;
-SQAnalysis.cln_dates = cln_dates;
+% SNR
 SQAnalysis.SNR_r = SNR_r;
 SQAnalysis.SNR_rp = SNR_rp;
 SQAnalysis.SNR_slope = SNR_slope;
 SQAnalysis.SNR_slope_p = SNR_slope_p;
+SQAnalysis.med_SNR_r = med_SNR_r;
+SQAnalysis.med_SNR_p = med_SNR_p;
+SQAnalysis.median_SNR = median_SNR;
+% Vpp
 SQAnalysis.Vpp_r = Vpp_r;
 SQAnalysis.Vpp_rp = Vpp_rp;
 SQAnalysis.Vpp_slope = Vpp_slope;
+SQAnalysis.med_Vpp_r = med_Vpp_r;
+SQAnalysis.med_Vpp_p = med_Vpp_p;
 SQAnalysis.Vpp_slope_p = Vpp_slope_p;
+SQAnalysis.median_Vpp = median_Vpp;
+% Cleaning
+SQAnalysis.cln_dates = cln_dates;
 SQAnalysis.Cln_r = Cln_r;
 SQAnalysis.Cln_rp = Cln_rp;
 SQAnalysis.Cln_slope = Cln_slope;
 SQAnalysis.Cln_slope_p = Cln_slope_p;
-SQAnalysis.median_SNR = median_SNR;
-SQAnalysis.median_Vpp = median_Vpp;
 SQAnalysis.median_vinter = median_vinter;
-SQAnalysis.med_SNR_r = med_SNR_r;
-SQAnalysis.med_SNR_p = med_SNR_p;
-SQAnalysis.med_Vpp_r = med_Vpp_r;
-SQAnalysis.med_Vpp_p = med_Vpp_p;
 SQAnalysis.med_Cln_r = med_Cln_r;
 SQAnalysis.med_Cln_p = med_Cln_p;
-SQAnalysis.motor_masks = motor_masks;
-SQAnalysis.sensory_masks = sensory_masks;
+% Impedance
+SQAnalysis.imp_dates = imp_dates;
+SQAnalysis.Imp_r = Imp_r;
+SQAnalysis.Imp_rp = Imp_rp;
+SQAnalysis.Imp_slope = Imp_slope;
+SQAnalysis.Imp_slope_p = Imp_slope_p;
+SQAnalysis.median_Imp = median_imp;
 
 
 %% Compare values with charge delivered
 % Correlate SNR/VPP/Cleaning with VMData on sensory arrays
 [SNR_charge_r, SNR_charge_rp, Vpp_charge_r, Vpp_charge_rp, vinter_charge_r, vinter_charge_rp, ...
-    DT_charge_r, DT_charge_rp] = deal(NaN(1, num_subjects));
+    DT_charge_r, DT_charge_rp, Imp_charge_r, Imp_charge_rp] = deal(NaN(1, num_subjects));
 charge_cell = cell(num_subjects, 1);
 prctile_mask = [5, 95];
 
@@ -164,6 +203,10 @@ for pi = 1:num_subjects
     % Detection
     dt_y = DetectionAnalysis.dt_slopes(:, pi);
     [DT_charge_r(pi), DT_charge_rp(pi)] = corr(x, dt_y, 'Rows', 'pairwise', 'type', correlation_type);
+
+    % Impedance
+    imp_y = Imp_slope(:, pi);
+    [Imp_charge_r(pi), Imp_charge_rp(pi)] = corr(x, Imp_slope(sensory_mask, pi), 'Rows', 'pairwise', 'type', correlation_type);
 end
 
 % Correct for multiple comparisons
@@ -171,6 +214,7 @@ SNR_charge_rp = HolmBonferroni(SNR_charge_rp);
 Vpp_charge_rp = HolmBonferroni(Vpp_charge_rp);
 vinter_charge_rp = HolmBonferroni(vinter_charge_rp);
 DT_charge_rp = HolmBonferroni(DT_charge_rp);
+Imp_charge_rp = HolmBonferroni(Imp_charge_rp);
 
 % Add to the output data structure
 SQAnalysis.SNR_charge_r = SNR_charge_r;
@@ -181,6 +225,8 @@ SQAnalysis.vinter_charge_r = vinter_charge_r;
 SQAnalysis.vinter_charge_rp = vinter_charge_rp;
 SQAnalysis.DT_charge_r = DT_charge_r;
 SQAnalysis.DT_charge_rp = DT_charge_rp;
+SQAnalysis.Imp_charge_r = Imp_charge_r;
+SQAnalysis.Imp_charge_rp = Imp_charge_rp;
 SQAnalysis.total_charge = total_charge;
 
 save(fullfile(DataPath, 'SQ_Analysis'), "SQAnalysis")
@@ -198,4 +244,14 @@ function slope = nan_regression(x, y)
     end
     pf = polyfit(x(~nan_idx)', y(~nan_idx)', 1);
     slope = pf(1);
+end
+
+
+%%
+
+clf; hold on
+s = 2;
+for i = 1:4
+    filt = SQData(s).implant_metadata.chan_indices{i};
+    plot(ImpedanceData(s).dates, median(ImpedanceData(s).impedances(:,filt), 2, 'omitnan'))
 end

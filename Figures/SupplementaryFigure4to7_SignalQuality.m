@@ -7,21 +7,22 @@ load(fullfile(DataPath, "VMData_All.mat"), 'total_charge')
 
 % Load cleaning data
 load(fullfile(DataPath, 'CleaningData'));
-% Remove data from before 14-Aug-2017 (different monitoring system)
+% Remove data from before 832 days after implant for P2 (different monitoring system)
 idx = [cleaning_data{3}.date] > 832; % Relative number of days after implant
 cleaning_data{3} = cleaning_data{3}(idx);
 
 %% Supplementary Figure 4
 [ax_size_y, ax_y_val] = GetAxisCoords(num_subjects, 0.04, 0.05);
-ax_y_val = ax_y_val + 0.03; ax_y_val = flipud(ax_y_val);
-[ax_size_x, ax_x_val] = GetAxisCoords(3, 0.1, 0.075);
+ax_y_val = ax_y_val + 0.025; ax_y_val = flipud(ax_y_val);
+[ax_size_x, ax_x_val] = GetAxisCoords(4, 0.1, 0.05);
+ax_x_val = ax_x_val + 0.0125;
 marker_size = 5;
 
 sensory_color = rgb(52, 152, 219); % Peterriver
 motor_color = rgb(46, 63, 79); % Wetasphalt
 
 clf;
-set(gcf, 'Units', 'Inches', 'Position', [1, 1, 6.45, 7.5]);
+set(gcf, 'Units', 'Inches', 'Position', [31, 1, 6.45, 7.5]);
 SetFont('Arial', 9)
 
 % Line plots
@@ -31,6 +32,7 @@ for p = 1:num_subjects
     xl = [0, ceil(x(end))];
     xt = [xl(1):xl(end)];
     xl = [xl(1) - range(xl) * 0.05, xl(end) + range(xl) * 0.05];
+    xq = linspace(xl(1), xl(2));
     xtl = sparse_xticklabels(xt);
 
     % SNR
@@ -39,12 +41,12 @@ for p = 1:num_subjects
         y = SQAnalysis.median_SNR{p}.sensory;
         scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .25)
         r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
-        plot(xl, polyval(r, xl), 'Color', sensory_color, 'LineWidth', 2);
+        plot(xq, polyval(r, xq), 'Color', sensory_color, 'LineWidth', 2);
         % Motor
         y = SQAnalysis.median_SNR{p}.motor;
         scatter(x, y, marker_size, motor_color, 'MarkerEdgeAlpha', .25)
         r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
-        plot(xl, polyval(r, xl), 'Color', motor_color, 'LineWidth', 2);
+        plot(xq, polyval(r, xq), 'Color', motor_color, 'LineWidth', 2);
         
         set(gca, 'XLim', xl, ...
                  'XTick', xt, ...
@@ -58,7 +60,7 @@ for p = 1:num_subjects
             text(tx, ty, ColorText({'Motor', 'Sensory'}, [motor_color; sensory_color]), ...
                 'HorizontalAlignment', 'left', 'VerticalAlignment', 'bottom')
         elseif p == round(num_subjects / 2)
-            ylabel('SNR', 'FontWeight', 'bold')
+            ylabel('SNR', 'FontWeight', 'bold', 'VerticalAlignment','middle')
         end
         title(ColorText(subject_list{p}, SubjectColors(subject_list{p})), 'VerticalAlignment', 'top')
 
@@ -68,12 +70,12 @@ for p = 1:num_subjects
         y = SQAnalysis.median_Vpp{p}.sensory;
         scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .25)
         r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
-        plot(xl, polyval(r, xl), 'Color', sensory_color, 'LineWidth', 2);
+        plot(xq, polyval(r, xq), 'Color', sensory_color, 'LineWidth', 2);
         % Motor
         y = SQAnalysis.median_Vpp{p}.motor;
         scatter(x, y, marker_size, motor_color, 'MarkerEdgeAlpha', .25)
         r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
-        plot(xl, polyval(r, xl), 'Color', motor_color, 'LineWidth', 2);
+        plot(xq, polyval(r, xq), 'Color', motor_color, 'LineWidth', 2);
         
         set(gca, 'XLim', xl, ...
                  'XTick', xt, ...
@@ -82,19 +84,40 @@ for p = 1:num_subjects
                  'XTickLabelRotation', 0)
     
         if p == round(num_subjects / 2)
-            ylabel(sprintf('Vpp (%sV)', GetUnicodeChar('mu')), 'FontWeight', 'bold')
-        elseif p == num_subjects
-            xlabel('Years Post Implant', 'FontWeight', 'bold')
+            ylabel(sprintf('Vpp (%sV)', GetUnicodeChar('mu')), 'FontWeight', 'bold', 'VerticalAlignment','middle')           
+        end
+
+    % Impedances
+    axes('Position', [ax_x_val(3), ax_y_val(p), ax_size_x, ax_size_y]); hold on
+        % Sensory
+        x = SQAnalysis.imp_dates{p};
+        y = SQAnalysis.median_Imp{p}.sensory;
+        scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .25)
+        % r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
+        % plot(xq, polyval(r, xq), 'Color', sensory_color, 'LineWidth', 2);
+        % Motor
+        y = SQAnalysis.median_Imp{p}.motor;
+        scatter(x, y, marker_size, motor_color, 'MarkerEdgeAlpha', .25)
+        % r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
+        % plot(xq, polyval(r, xq), 'Color', motor_color, 'LineWidth', 2);
+        
+        set(gca, 'XLim', xl, ...
+                 'XTick', xt, ...
+                 'XTickLabels', xtl, ...
+                 'XTickLabelRotation', 0)
+    
+        if p == round(num_subjects / 2)
+            ylabel(sprintf('Impedance (k%s)', GetUnicodeChar('Omega')), 'FontWeight', 'bold', 'VerticalAlignment','middle')
         end
 
     % Cleaning
-    axes('Position', [ax_x_val(3), ax_y_val(p), ax_size_x, ax_size_y]); hold on
+    axes('Position', [ax_x_val(4), ax_y_val(p), ax_size_x, ax_size_y]); hold on
         x = SQAnalysis.cln_dates{p};
         y = SQAnalysis.median_vinter{p};
         y(y < -1.5) = NaN; % Disconnected channels
         scatter(x, y, marker_size, sensory_color, 'MarkerEdgeAlpha', .5)
         r = polyfit(x(~isnan(y)), y(~isnan(y)), 1);
-        plot(xl, polyval(r, xl), 'Color', sensory_color, 'LineWidth', 2);
+        plot(xq, polyval(r, xq), 'Color', sensory_color, 'LineWidth', 2);
         % [r,p] = corr(x,y, 'Rows', 'complete');
     
         set(gca, 'XLim', xl, ...
@@ -104,12 +127,14 @@ for p = 1:num_subjects
                  'XTickLabelRotation', 0)
     
         if p == round(num_subjects / 2)
-            ylabel(sprintf('V_{inter} (V)'), 'FontWeight', 'bold')
+            ylabel(sprintf('V_{inter} (V)'), 'FontWeight', 'bold', 'VerticalAlignment','middle')
         end
 end
 
+annotation("textbox", [0.4 0.025 0.2 0.025], 'String',  'Years Post Implant', 'FontWeight', 'bold', 'EdgeColor', 'none')
+
 h = gcf();
-AddFigureLabels(h.Children([end, end-1, end-2]), [.075, .0275])
+AddFigureLabels(h.Children([end, end-1, end-2, end-3]), [.075, .0275])
 % export_figure3x(FigurePath, 'SuppFig4_SignalQuality')
 
 shg
@@ -128,109 +153,6 @@ g2 = repmat(g2, 1, 5);
     'varnames', {'Participant', 'ArrayType'});
 mc = multcompare(stat, 'Dimension', 2);
 
-%% Supplementary Figure 5
-[ax_size_x, ax_x_val] = GetAxisCoords(3, 0.1, 0.1);
-[ax_size_y, ax_y_val] = GetAxisCoords(num_subjects, 0.05, 0.05);
-ax_y_val = ax_y_val + 0.01;
-
-clf;
-set(gcf, 'Units', 'Inches', 'Position', [1, 1, 6.45, 8]);
-SetFont('Arial', 9)
-marker_size = 10;
-prctile_mask = [5, 95];
-
-clearvars ax
-% Create axes
-i = 1;
-for p = 1:num_subjects
-    for j = 1:3
-        ax(i) = axes('Position', [ax_x_val(j), ax_y_val(p), ax_size_x, ax_size_y]); hold on
-        set(ax(i), 'XScale', 'linear', 'YScale', 'linear')
-        i = i + 1;
-    end
-end
-
-
-h = gcf;
-o = length(h.Children) + 1;
-for pi = 1:num_subjects
-    x = total_charge(pi, :)';
-    xl = [0 ceil(max(x, [], 'omitnan'))];
-  
-    % Get sensory mask
-    sensory_mask = SQAnalysis.sensory_masks{pi};
-    
-    % SNR
-    snr_y = SQAnalysis.SNR_slope(sensory_mask, pi);
-    mask = snr_y < prctile(snr_y, prctile_mask(1)) | snr_y > prctile(snr_y, prctile_mask(2));
-    snr_y(mask) = NaN;
-    nan_idx = ~isnan(snr_y);
-    scatter(x, snr_y, marker_size, SubjectColors(subject_list{pi}), 'MarkerEdgeAlpha', .5, 'Parent', ax(o-3))
-    r = polyfit(x(nan_idx), snr_y(nan_idx), 1);
-    plot(xl, polyval(r, xl), 'Color', SubjectColors(subject_list{pi}), 'Parent', ax(o-3), 'LineWidth', 2);
-
-    % Vpp
-    vpp_y = SQAnalysis.Vpp_slope(sensory_mask, pi);
-    mask = vpp_y < prctile(vpp_y, prctile_mask(1)) | vpp_y > prctile(vpp_y, prctile_mask(2));
-    vpp_y(mask) = NaN;
-    nan_idx = ~isnan(vpp_y);
-    scatter(x, vpp_y, marker_size, SubjectColors(subject_list{pi}), 'MarkerEdgeAlpha', .5, 'Parent', ax(o-2))
-    r = polyfit(x(nan_idx), vpp_y(nan_idx), 1);
-    plot(xl, polyval(r, xl), 'Color', SubjectColors(subject_list{pi}), 'Parent', ax(o-2), 'LineWidth', 2);
-
-    %Vinter
-    cln_y = SQAnalysis.Cln_slope(:, pi);
-    mask = cln_y < prctile(cln_y, prctile_mask(1)) | cln_y > prctile(cln_y, prctile_mask(2));
-    cln_y(mask) = NaN;
-    nan_idx = ~isnan(cln_y);
-    scatter(x, cln_y, marker_size, SubjectColors(subject_list{pi}), 'MarkerEdgeAlpha', .5, 'Parent', ax(o-1))
-    r = polyfit(x(nan_idx), cln_y(nan_idx), 1);
-    plot(xl, polyval(r, xl), 'Color', SubjectColors(subject_list{pi}), 'Parent', ax(o-1), 'LineWidth', 2);
-
-    % Formatting
-    if pi == 3
-        ylabel(ax(o-3), sprintf('%sSNR/year', GetUnicodeChar('Delta')), 'FontWeight', 'bold')
-        ylabel(ax(o-2), sprintf('%sVpp (%sV/year)', GetUnicodeChar('Delta'), GetUnicodeChar('mu')), 'FontWeight', 'bold')
-        ylabel(ax(o-1), sprintf('%sV_{inter} (V/year)', GetUnicodeChar('Delta')), 'FontWeight', 'bold')
-
-        xl(2) = 30;
-    end
-    
-    for i = 1:3
-        set(ax(o-i), 'XLim', xl)
-    end
-
-    o = o - 3;
-end
-
-
-xlabel(ax(2), 'Charge per Electrode (mC)', 'FontWeight', 'bold')
-
-% Add text values after correction
-o = length(h.Children) + 1;
-for i = 1:num_subjects
-    title(ax(o-3), ColorText(subject_list(i), SubjectColors(subject_list(i))));
-
-    t = sprintf('r = %0.3f\n%s', SQAnalysis.SNR_charge_r(i), pStr(SQAnalysis.SNR_charge_rp(i), 3));
-    [x,y] = GetAxisPosition(ax(o-3), 100, 5);
-    text(x,y,t, 'HorizontalAlignment', 'right', 'VerticalAlignment', 'bottom', 'Color', [.2 .2 .2], ...
-        'Parent', ax(o-3))
-
-    t = sprintf('r = %0.3f\n%s', SQAnalysis.Vpp_charge_r(i), pStr(SQAnalysis.Vpp_charge_rp(i), 3));
-    [x,y] = GetAxisPosition(ax(o-2), 100, 5);
-    text(x,y,t, 'HorizontalAlignment', 'right', 'VerticalAlignment', 'bottom', 'Color', [.2 .2 .2], ...
-        'Parent', ax(o-2))
-
-    t = sprintf('r = %0.3f\n%s', SQAnalysis.vinter_charge_r(i), pStr(SQAnalysis.vinter_charge_rp(i), 3));
-    [x,y] = GetAxisPosition(ax(o-1), 100, 5);
-    text(x,y,t, 'HorizontalAlignment', 'right', 'VerticalAlignment', 'bottom', 'Color', [.2 .2 .2], ...
-        'Parent', ax(o-1))
-
-    o = o - 3;
-end
-
-AddFigureLabels(h.Children([3,2,1]), [.07, .0275])
-% export_figure3x(FigurePath, 'SuppFig5_ChargeQuality')
 
 %% Correlations between all factors
 % For each participant:
@@ -263,7 +185,7 @@ corr_ps = HolmBonferroni(corr_ps);
 corr_ps = mean(cat(4, corr_ps, permute(corr_ps, [2,1,3])), 4, 'omitnan');
 
 
-%% Supplementary Figure 6
+%% Supplementary Figure 5
 dt_xbin = 250;
 [ax_size_y, ax_y_val] = GetAxisCoords(2, 0.15, 0.1);
 % ax_y_val = ax_y_val + 0.05;
@@ -271,29 +193,50 @@ dt_xbin = 250;
 clf;
 set(gcf, 'Units', 'Inches', 'Position', [27, 1, 6.45, 4.5]);
 SetFont('Arial', 9)
-
-% Pairwise correlation dot plots
-[ax_size_x, ax_x_val] = GetAxisCoords(4, 0.05, 0.075);
-
 colors = SubjectColors(subject_list);
+
+
+[ax_size_x, ax_x_val] = GetAxisCoords(5, 0.05, 0.075);
+% Charge correlation dot plots
+% Concatenate for easy indexing
+r = cat(1, SQAnalysis.SNR_charge_r, SQAnalysis.Vpp_charge_r, SQAnalysis.Imp_charge_r, SQAnalysis.vinter_charge_r);
+p = cat(1, SQAnalysis.SNR_charge_rp, SQAnalysis.Vpp_charge_rp, SQAnalysis.Imp_charge_rp, SQAnalysis.vinter_charge_rp);
+
+axes('Position', [ax_x_val(1), ax_y_val(2), ax_size_x, ax_size_y]); hold on; title('Charge')
+    plot([.5 4.5], [0 0], 'Color', [.6 .6 .6], 'LineStyle', ':')
+    for i = 1:size(r,1)
+        for j = 1:num_subjects
+            if p(i,j) < 0.05
+                fc = colors(j,:);
+            else
+                fc = [1,1,1];
+            end
+            scatter(i, r(i,j), 30, 'MarkerEdgeColor', colors(j,:), ...
+                    'MarkerFaceColor', fc, 'LineWidth', 1.5)
+        end
+    end
+
+    set(gca, 'XTick', [1:4], ...
+             'XLim', [.5 4.5], ...
+             'XTickLabels', {'SNR', 'V_{pp}', 'Imp', 'V_{inter}'}, ...
+             'YLim', [-1 1])
+    ylabel('Correlation (r)')
+
+
+% Signal Quality correlation dot plots
 titles = {sprintf('%sSNR', GetUnicodeChar('Delta')), ...
           sprintf('%sV_{pp}', GetUnicodeChar('Delta')), ...
           sprintf('%sV_{inter}', GetUnicodeChar('Delta')), ...
           sprintf('%sDT', GetUnicodeChar('Delta'))};
 yv = [1:4];
 for ax = 1:4
-    axes('Position', [ax_x_val(ax), ax_y_val(2), ax_size_x, ax_size_y]); hold on
+    axes('Position', [ax_x_val(ax+1), ax_y_val(2), ax_size_x, ax_size_y]); hold on
     yv_ax = yv(yv ~= ax);
     sig_cor_plot(corr_rs(ax, yv_ax,:), corr_ps(ax, yv_ax,:), colors)
     
     % Format
     title(titles{ax})
-    if ax == 1
-        set(gca, 'XTickLabels', titles(yv_ax))
-        ylabel('Correlation (r)')
-    else
-        set(gca, 'XTickLabels', titles(yv_ax), 'YTickLabels', {})
-    end
+    set(gca, 'XTickLabels', titles(yv_ax), 'YTickLabels', {})
 end
 
 % Metric detection plots
@@ -301,7 +244,7 @@ end
 clearvars ax
 % Create axes
 for j = 1:3
-    ax(j) = axes('Position', [ax_x_val(j), ax_y_val(1), ax_size_x, ax_size_y]); hold on
+    ax(j) = axes('Position', [ax_x_val(j), ax_y_val(1), ax_size_x, ax_size_y]); hold on %#ok<SAGROW>
     set(ax(j), 'XTick', [1.5:3:14.5], ...
                'XTickLabel', ColorText(subject_list, SubjectColors(subject_list)))
 end
@@ -373,7 +316,7 @@ text(1, 1.5, 'Detectable', 'Rotation', 90, 'HorizontalAlignment','left', 'Vertic
 text(2.2, 1.5, 'Undetectable', 'Rotation', 90, 'HorizontalAlignment','left', 'VerticalAlignment', 'middle', 'Parent', ax(1))
 
 AddFigureLabels(gcf(), [.05, 0])
-% export_figure3x(FigurePath, 'SuppFig6_SQ_DT')
+% export_figure3x(FigurePath, 'SuppFig5_SQ_DT')
 
 shg
 
@@ -389,7 +332,7 @@ vpp_anova = anovan(vpp(:), {dt(:), prt(:)}, 'varnames', {'Detectable', 'Particip
 cln_anova = anovan(cln(:), {dt(:), prt(:)}, 'varnames', {'Detectable', 'Participant'});
 
 
-%% Supplementary Figure 7
+%% Supplementary Figure 6 right column
 clf; 
 set(gcf, 'Units', 'Inches', 'Position', [1, 1, 3, 10]);
 SetFont('Arial', 9)
@@ -436,7 +379,7 @@ function sig_cor_plot(r,p, color)
     p = squeeze(p);
 
     % Plot 0-line
-    plot([.5 size(r,1) + .5], [0,0], 'Color', [.6 .6 .6], 'LineStyle', '--')
+    plot([.5 size(r,1) + .5], [0,0], 'Color', [.6 .6 .6], 'LineStyle', ':')
 
     for i = 1:size(r,1)
         for j = 1:size(r,2)
