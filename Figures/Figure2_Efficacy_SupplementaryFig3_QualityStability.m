@@ -70,7 +70,7 @@ ax(2) = axes('Position', [ax_xs(2), ax_ys(3), ax_w, ax_h]); hold on
         Swarm(s, y .* 365, SubjectColors(subject_list_alt{s}), 'DistributionWidth', .35, 'DS', 'Box', 'SPL', 0, ...
             'DLW', 1.5)
     end
-    set(gca, 'Ylim', [-30 70], ...
+    set(gca, 'Ylim', [-30 45], ...
              'XTick', [1:5], ...
              'XTickLabel', ColorText(subject_list_alt, SubjectColors(subject_list_alt)), ...
              'XLim', [.5 4.5], ...
@@ -79,6 +79,7 @@ ax(2) = axes('Position', [ax_xs(2), ax_ys(3), ax_w, ax_h]); hold on
 
 
 % Functional electrodes
+[pct_remaining, pct_of_max] = deal(NaN(num_subjects, 1));
 ax(3) = axes('Position', [ax_xs(3), ax_ys(3), ax_w, ax_h]); hold on
     for s = 1:num_subjects
         x = DetectionAnalysis.x(1:DetectionAnalysis.term_idx(s)) ./ 365;
@@ -87,11 +88,15 @@ ax(3) = axes('Position', [ax_xs(3), ax_ys(3), ax_w, ax_h]); hold on
         scatter(x,y, 20, 'MarkerEdgeColor', SubjectColors(subject_list_alt{s}), 'MarkerFaceColor', 'w', ...
             'LineWidth', 2, 'MarkerFaceAlpha', 1)
         % Print the remaining percent for each
-        fprintf("Pct of max = %0.1f\n", y(end)/max(y)*100)
+        pct_remaining(s) = y(end) * 100;
+        pct_of_max(s) = y(end)/max(y)*100;
     end
     ylabel('p(Functional Electrodes)')
     xlabel('Years from Implant')
     set(gca, 'YLim', [0 1])
+    
+    fprintf("Percent remaining = %0.1f +/- %0.1f\n", mean(pct_remaining), std(pct_remaining))
+    fprintf("Percent of max = %0.2f +/- %0.1f\n", mean(pct_of_max), std(pct_of_max))
 
 % Coverage hand maps
 % P2 Timepoint 1
