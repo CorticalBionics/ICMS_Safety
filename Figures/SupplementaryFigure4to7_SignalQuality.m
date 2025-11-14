@@ -11,6 +11,16 @@ load(fullfile(DataPath, 'CleaningData'));
 idx = [cleaning_data{3}.date] > 832; % Relative number of days after implant
 cleaning_data{3} = cleaning_data{3}(idx);
 
+% Load impedance data
+load(fullfile(DataPath, 'ImpedanceData'));
+% Remove bad arrays from C1 and C2
+% Anterior motor from C1
+filt = SQData(1).implant_metadata.chan_indices{1};
+ImpedanceData(1).impedances(:,filt) = NaN(length(ImpedanceData(1).dates), length(filt));
+% Posterior sensory from C2
+filt = SQData(2).implant_metadata.chan_indices{4};
+ImpedanceData(2).impedances(:,filt) = NaN(length(ImpedanceData(2).dates), length(filt));
+
 %% Supplementary Figure 4
 [ax_size_y, ax_y_val] = GetAxisCoords(num_subjects, 0.04, 0.05);
 ax_y_val = ax_y_val + 0.025; ax_y_val = flipud(ax_y_val);
@@ -270,10 +280,13 @@ for pi = 1:num_subjects
     y_snr = 10.^(y_snr./20); % Undo log scaling
     y_snr_end = median(y_snr(sqx_idx_end, sm), 1, 'omitnan');
     snr{pi} = y_snr_end;
+
     % Vpp
     y_vpp = cat(1, SQData(pi).signal_quality_analysis.ch_vpp); % Same x as SNR
     y_vpp_end = median(y_vpp(sqx_idx_end, sm), 1, 'omitnan');
     vpp{pi} = y_vpp_end;
+    
+    % Impedance
 
 
     % V_inter
@@ -288,20 +301,20 @@ for pi = 1:num_subjects
 
     % Add data
     % SNR
-    Swarm(i, y_snr_end(dt_idx_end), colors(pi,:), ...
-        'DS', 'none', 'Parent', ax(1), 'DS', 'Box', 'SPL', 0)
-    Swarm(i+1, y_snr_end(~dt_idx_end), colors(pi,:), ...
-        'DS', 'none', 'Parent', ax(1), 'SFA', 0, 'DS', 'Box', 'SPL', 0, 'DFA', 0)
+    Swarm(i, y_snr_end(dt_idx_end), 'Color', colors(pi,:), ...
+        'Parent', ax(1), 'distribution_style', 'Box', 'swarm_point_limit', 0)
+    Swarm(i+1, y_snr_end(~dt_idx_end), 'Color',colors(pi,:), ...
+        'Parent', ax(1), 'distribution_style', 'Box', 'swarm_point_limit', 0, 'distribution_face_alpha', 0)
     % Vpp
-    Swarm(i, y_vpp_end(dt_idx_end), colors(pi,:), ...
-        'DS', 'none', 'Parent', ax(2), 'DS', 'Box', 'SPL', 0)
-    Swarm(i+1, y_vpp_end(~dt_idx_end), colors(pi,:), ...
-        'DS', 'none', 'Parent', ax(2), 'SFA', 0, 'DS', 'Box', 'SPL', 0, 'DFA', 0)
+    Swarm(i, y_vpp_end(dt_idx_end), 'Color', colors(pi,:), ...
+        'Parent', ax(2), 'distribution_style', 'Box', 'swarm_point_limit', 0)
+    Swarm(i+1, y_vpp_end(~dt_idx_end), 'Color', colors(pi,:), ...
+        'Parent', ax(2), 'distribution_style', 'Box', 'swarm_point_limit', 0, 'distribution_face_alpha', 0)
     % Cln
-    Swarm(i, y_cln_end(dt_idx_end), colors(pi,:), ...
-        'DS', 'none', 'Parent', ax(3), 'DS', 'Box', 'SPL', 0)
-    Swarm(i+1, y_cln_end(~dt_idx_end), colors(pi,:), ...
-        'DS', 'none', 'Parent', ax(3), 'SFA', 0, 'DS', 'Box', 'SPL', 0, 'DFA', 0)
+    Swarm(i, y_cln_end(dt_idx_end), 'Color', colors(pi,:), ...
+        'Parent', ax(3), 'distribution_style', 'Box', 'swarm_point_limit', 0)
+    Swarm(i+1, y_cln_end(~dt_idx_end), 'Color', colors(pi,:), ...
+        'Parent', ax(3), 'distribution_style', 'Box', 'swarm_point_limit', 0, 'distribution_face_alpha', 0)
     
     % Increment x
     i = i + 3;
@@ -350,11 +363,11 @@ for pi = 1:num_subjects
 
     % Counts
     Swarm(1, sum(dt_idx_1 & dt_idx_end), SubjectColors(subject_list{pi}), ...
-        'DS', 'Bar', 'SPL', 0)
+        'DS', 'Bar', 'swarm_point_limit', 0)
     Swarm(2, sum(dt_idx_1 & ~dt_idx_end), SubjectColors(subject_list{pi}), ...
-        'DS', 'Bar', 'SPL', 0)
+        'DS', 'Bar', 'swarm_point_limit', 0)
     Swarm(3, sum(dt_idx_end & ~dt_idx_1), SubjectColors(subject_list{pi}), ...
-        'DS', 'Bar', 'SPL', 0)
+        'DS', 'Bar', 'swarm_point_limit', 0)
 
     % Format
     set(gca, 'XLim', [.5 3.5], ...
