@@ -66,9 +66,8 @@ for p = 1:num_subjects
         
         % Formatting
         if p == 1
-            [tx, ty] = GetAxisPosition(gca, 5, 5);
-            text(tx, ty, ColorText({'Motor', 'Sensory'}, [motor_color; sensory_color]), ...
-                'HorizontalAlignment', 'left', 'VerticalAlignment', 'bottom')
+            text(5, 5, ColorText({'Motor', 'Sensory'}, [motor_color; sensory_color]), ...
+                'sc', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'bottom')
         elseif p == round(num_subjects / 2)
             ylabel('SNR', 'FontWeight', 'bold', 'VerticalAlignment','middle')
         end
@@ -198,10 +197,9 @@ corr_ps = mean(cat(4, corr_ps, permute(corr_ps, [2,1,3])), 4, 'omitnan');
 %% Supplementary Figure 5
 dt_xbin = 250;
 [ax_size_y, ax_y_val] = GetAxisCoords(2, 0.15, 0.1);
-% ax_y_val = ax_y_val + 0.05;
 
 clf;
-set(gcf, 'Units', 'Inches', 'Position', [27, 1, 6.45, 4.5]);
+set(gcf, 'Units', 'Inches', 'Position', [1, 1, 6.45, 4.5]);
 SetFont('Arial', 9)
 colors = SubjectColors(subject_list);
 
@@ -250,10 +248,10 @@ for ax = 1:4
 end
 
 % Metric detection plots
-[ax_size_x, ax_x_val] = GetAxisCoords(3, 0.1, 0.075);
+[ax_size_x, ax_x_val] = GetAxisCoords(4, 0.095, 0.075);
 clearvars ax
 % Create axes
-for j = 1:3
+for j = 1:4
     ax(j) = axes('Position', [ax_x_val(j), ax_y_val(1), ax_size_x, ax_size_y]); hold on %#ok<SAGROW>
     set(ax(j), 'XTick', [1.5:3:14.5], ...
                'XTickLabel', ColorText(subject_list, SubjectColors(subject_list)))
@@ -285,9 +283,6 @@ for pi = 1:num_subjects
     y_vpp = cat(1, SQData(pi).signal_quality_analysis.ch_vpp); % Same x as SNR
     y_vpp_end = median(y_vpp(sqx_idx_end, sm), 1, 'omitnan');
     vpp{pi} = y_vpp_end;
-    
-    % Impedance
-
 
     % V_inter
     idx = cellfun(@(c) ~isempty(c), {cleaning_data{pi}.vmin});
@@ -298,6 +293,12 @@ for pi = 1:num_subjects
     y_cln(y_cln < -1.5) = NaN; % Disconnected channels
     y_cln_end = median(y_cln(:, clnx_idx_end), 2, 'omitnan');
     cln{pi} = y_cln_end;
+
+    % Impedance (uses different dates because not stim only)
+    sensory_mask = SQAnalysis.sensory_masks{pi};
+    imp_idx = (max(ImpedanceData(pi).dates) - ImpedanceData(pi).dates) < 250;
+    imp_vals = ImpedanceData(pi).impedances(imp_idx, sensory_mask);
+    imp_vals = median(imp_vals, 1, 'omitnan');
 
     % Add data
     % SNR
@@ -315,6 +316,11 @@ for pi = 1:num_subjects
         'Parent', ax(3), 'distribution_style', 'Box', 'swarm_point_limit', 0)
     Swarm(i+1, y_cln_end(~dt_idx_end), 'Color', colors(pi,:), ...
         'Parent', ax(3), 'distribution_style', 'Box', 'swarm_point_limit', 0, 'distribution_face_alpha', 0)
+    % Imp
+    Swarm(i, imp_vals(dt_idx_end), 'Color', colors(pi,:), ...
+        'Parent', ax(4), 'distribution_style', 'Box', 'swarm_point_limit', 0)
+    Swarm(i+1, imp_vals(~dt_idx_end), 'Color', colors(pi,:), ...
+        'Parent', ax(4), 'distribution_style', 'Box', 'swarm_point_limit', 0, 'distribution_face_alpha', 0)
     
     % Increment x
     i = i + 3;
@@ -324,9 +330,11 @@ end
 ylabel(ax(1), 'SNR')
 ylabel(ax(2), sprintf('Vpp (%sv)', GetUnicodeChar('mu')))
 ylabel(ax(3), sprintf('V_{inter} (%sv)', GetUnicodeChar('mu')))
+ylabel(ax(4), 'Impedance (kOhms)')
+set(ax(4), 'YScale', 'log')
 
 text(1, 1.5, 'Detectable', 'Rotation', 90, 'HorizontalAlignment','left', 'VerticalAlignment', 'middle', 'Parent', ax(1))
-text(2.2, 1.5, 'Undetectable', 'Rotation', 90, 'HorizontalAlignment','left', 'VerticalAlignment', 'middle', 'Parent', ax(1))
+text(2.5, 1.5, 'Undetectable', 'Rotation', 90, 'HorizontalAlignment','left', 'VerticalAlignment', 'middle', 'Parent', ax(1))
 
 AddFigureLabels(gcf(), [.05, 0])
 % export_figure3x(FigurePath, 'SuppFig5_SQ_DT')
