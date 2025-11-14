@@ -258,7 +258,7 @@ for j = 1:4
 end
 
 % Plot and assign data to cell for ANOVA
-[snr, vpp, cln, dt] = deal(cell(num_subjects, 1));
+[snr, vpp, cln, dt, imp] = deal(cell(num_subjects, 1));
 i = 1;
 for pi = 1:num_subjects
     % Get last time point
@@ -299,6 +299,7 @@ for pi = 1:num_subjects
     imp_idx = (max(ImpedanceData(pi).dates) - ImpedanceData(pi).dates) < 250;
     imp_vals = ImpedanceData(pi).impedances(imp_idx, sensory_mask);
     imp_vals = median(imp_vals, 1, 'omitnan');
+    imp{pi} = imp_vals;
 
     % Add data
     % SNR
@@ -346,11 +347,13 @@ snr = cat(1, snr{:})';
 vpp = cat(1, vpp{:})';
 cln = cat(2, cln{:});
 dt = cat(2, dt{:});
+imp = cat(1, imp{:})';
 prt = repmat([1:5], 64, 1);
 
 snr_anova = anovan(snr(:), {dt(:), prt(:)}, 'varnames', {'Detectable', 'Participant'});
 vpp_anova = anovan(vpp(:), {dt(:), prt(:)}, 'varnames', {'Detectable', 'Participant'});
 cln_anova = anovan(cln(:), {dt(:), prt(:)}, 'varnames', {'Detectable', 'Participant'});
+imp_anova = anovan(imp(:), {dt(:), prt(:)}, 'varnames', {'Detectable', 'Participant'});
 
 
 %% Supplementary Figure 6 right column
