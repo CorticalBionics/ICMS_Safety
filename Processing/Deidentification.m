@@ -1,6 +1,8 @@
 %%% Script to sanitize data structures of implant date information
 [subject_list, num_subjects] = GetSubjectList();
+[subject_list_alt, ~] = GetSubjectList(true);
 implant_dates = NaT(num_subjects, 1);
+electrode_maps = struct();
 for pi = 1:num_subjects
     if contains(subject_list{pi}, 'BCI')
         site = 'chicago';
@@ -8,8 +10,10 @@ for pi = 1:num_subjects
         site = 'pitt';
     end
     implant_dates(pi) = datetime(cc.load_config.participant(subject_list{pi}, site).implant_date, 'InputFormat','uuuu-MM-dd');
+    electrode_maps.(subject_list_alt{pi}) = cc.analysis.load_participant_electrode_map(subject_list{pi});
 end
 clearvars site pi
+save(fullfile(DataPath, 'ElectrodeMaps.mat'), "electrode_maps")
 
 %% Signal quality data
 flist = dir(fullfile(DataPath, 'SignalQuality', '*.mat'));

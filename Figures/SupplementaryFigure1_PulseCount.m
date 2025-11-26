@@ -1,5 +1,6 @@
 % Pulse count analysis
 load(fullfile(DataPath, 'VMData_All.mat'))
+load(fullfile(DataPath, 'ElectrodeMaps.mat'))
 [subject_list, ~] = GetSubjectList();
 subject_list = cellfun(@(c) c(1:5), subject_list, 'UniformOutput', false);
 [subject_list_alt, num_subjects] = GetSubjectList(true);
@@ -123,9 +124,9 @@ for pi = 1:num_subjects
     [x, xi] = sort(x);
     total_pulses = total_pulses(:, xi);
     sum_pulses = sum(total_pulses, 2, 'omitnan');
-    % Get channel map
-    cm = LoadSubjectChannelMap(subject_list{pi});
-    array_maps = cm.ChannelNumbers(find(cm.IsSensory));
+    % Get sensory channel maps
+    array_maps = {electrode_maps.(subject_list_alt{pi}).lateral_sensory.numbers, ...
+                  electrode_maps.(subject_list_alt{pi}).medial_sensory.numbers};
     y_offset = 0;
     for a = 1:length(array_maps)
         for i = 1:numel(array_maps{a})
@@ -176,14 +177,27 @@ for i = 1:7
 end
 % Add plot elements
 for pi = 1:num_subjects
-    Swarm(pi, total_pulse_count(pi), SubjectColors(subject_list{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(1))
-    Swarm(pi, pulse_count_per_session{pi}, SubjectColors(subject_list{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(2))
-    Swarm(pi, total_pulse_per_electrode(pi,:), SubjectColors(subject_list{pi}), 'DS', 'Box', 'SPL', 0, 'Parent', ax(3))
-    Swarm(pi, total_charge(pi), SubjectColors(subject_list{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(4))
-    Swarm(pi, charge_per_session{pi}, SubjectColors(subject_list{pi}), 'DS', 'Bar', 'SPL', 0, 'Parent', ax(5))
-    Swarm(pi, total_charge_per_electrode(pi,:), SubjectColors(subject_list{pi}), 'DS', 'Box', 'SPL', 0, 'Parent', ax(6))
+    Swarm(pi, total_pulse_count(pi), 'color', SubjectColors(subject_list{pi}), ...
+        'distribution_style', 'Bar', 'swarm_point_limit', 0, 'distribution_method', 'None', ...
+        'Parent', ax(1))
+    Swarm(pi, pulse_count_per_session{pi}, 'color', SubjectColors(subject_list{pi}), ...
+        'distribution_style', 'Bar', 'swarm_point_limit', 0, 'distribution_method', 'None', ...
+        'Parent', ax(2))
+    Swarm(pi, total_pulse_per_electrode(pi,:), 'color', SubjectColors(subject_list{pi}), ...
+        'distribution_style', 'Box', 'swarm_point_limit', 0, 'distribution_method', 'None', ...
+        'Parent', ax(3))
+    Swarm(pi, total_charge(pi), 'color', SubjectColors(subject_list{pi}), ...
+        'distribution_style', 'Bar', 'swarm_point_limit', 0, 'distribution_method', 'None', ...
+        'Parent', ax(4))
+    Swarm(pi, charge_per_session{pi}, 'color', SubjectColors(subject_list{pi}), ...
+        'distribution_style', 'Bar', 'swarm_point_limit', 0, 'distribution_method', 'None', ...
+        'Parent', ax(5))
+    Swarm(pi, total_charge_per_electrode(pi,:), 'color', SubjectColors(subject_list{pi}), ...
+        'distribution_style', 'Box', 'swarm_point_limit', 0, 'distribution_method', 'None', ...
+        'Parent', ax(6))
     Swarm(pi, (total_charge_per_electrode(pi,:) ./ total_pulse_per_electrode(pi,:)) .* conversion_factor, ...
-        SubjectColors(subject_list{pi}), 'DS', 'Box', 'SPL', 0, 'Parent', ax(7)) % Convert back to nanocoulombs
+        'color', SubjectColors(subject_list{pi}), 'distribution_style', 'Box', 'swarm_point_limit', 0, ...
+        'distribution_method', 'None', 'Parent', ax(7)) % Convert back to nanocoulombs
 end
 % Format
 set(ax(end), 'XTickLabel', ColorText(subject_list_alt, SubjectColors(subject_list)))
@@ -198,30 +212,3 @@ AddFigureLabels(all_ax([7:-1:1]), [0.05, 0.025], 66)
 shg
 
 %export_figure3x(FigurePath, 'SuppFig1_PulseCounts')
-
-return
-%% Alt figure version
-clf;
-
-for pi = 1:num_subjects
-    subplot(1,5,pi); hold on
-    % Filter by subject
-    s_idx = strcmp(VMData.Subject, subject_list(pi));
-    % Get time
-    x = VMData.Date(s_idx);
-    % Get pulses
-    total_pulses = cat(2, VMData.PulseCount{s_idx});
-    % total_pulses(total_pulses == 0) = NaN;
-    % Sort and plot
-    [x, xi] = sort(x);
-    total_pulses = total_pulses(:, xi);
-    %%% V1
-    % plot(x, total_pulses, 'Color', [.6 .6 .6])
-    % plot(x, mean(total_pulses, 1, 'omitnan'), 'Color', [.2 .2 .2])
-    %%% V2 (colorful)
-    plot(x, total_pulses)
-    %%% V3 Alphaline
-    % AlphaLine(x, total_pulses, [.6 .6 .6])
-    % h = gca;
-    % h.YLim = [0, h.YLim(2)];
-end
