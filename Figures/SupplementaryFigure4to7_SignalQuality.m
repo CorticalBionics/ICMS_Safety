@@ -3,6 +3,7 @@ load(fullfile(DataPath, "SQ_Analysis"))
 load(fullfile(DataPath, "SignalQuality"))
 load(fullfile(DataPath, 'DT_Analysis'));
 load(fullfile(DataPath, "VMData_All.mat"), 'total_charge')
+load(fullfile(DataPath, 'ElectrodeMaps.mat'));
 [subject_list, num_subjects] = GetSubjectList(true);
 
 % Load cleaning data
@@ -32,7 +33,7 @@ sensory_color = rgb(52, 152, 219); % Peterriver
 motor_color = rgb(46, 63, 79); % Wetasphalt
 
 clf;
-set(gcf, 'Units', 'Inches', 'Position', [31, 1, 6.45, 7.5]);
+set(gcf, 'Units', 'Inches', 'Position', [1, 1, 6.45, 7.5]);
 SetFont('Arial', 9)
 
 % Line plots
@@ -203,7 +204,6 @@ set(gcf, 'Units', 'Inches', 'Position', [1, 1, 6.45, 4.5]);
 SetFont('Arial', 9)
 colors = SubjectColors(subject_list);
 
-
 [ax_size_x, ax_x_val] = GetAxisCoords(5, 0.05, 0.075);
 % Charge correlation dot plots
 % Concatenate for easy indexing
@@ -356,29 +356,117 @@ cln_anova = anovan(cln(:), {dt(:), prt(:)}, 'varnames', {'Detectable', 'Particip
 imp_anova = anovan(imp(:), {dt(:), prt(:)}, 'varnames', {'Detectable', 'Participant'});
 
 
-%% Supplementary Figure 6 right column
+%% Compute Moran's I and make arrays
+num_perms = 1e4;
+[lat_values_start, lat_values_end, med_values_start, med_values_end] = deal(cell(num_subjects, 1));
+[mi_i_vals, mi_p_vals] = deal(NaN(num_subjects, 4));
+for pi = 1:num_subjects
+    % Get indices of detectable electrodes at first and last timepoint
+    xmax = DetectionAnalysis.term_idx(pi);
+    dt_idx_init = DetectionAnalysis.disabled_electrodes{pi}(:,1);
+    dt_idx_end = DetectionAnalysis.disabled_electrodes{pi}(:,xmax);
+
+    % Assign detect or not to map based on numbers
+    lat_emap = electrode_maps.(subject_list{pi}).lateral_sensory.numbers;
+    med_emap = electrode_maps.(subject_list{pi}).medial_sensory.numbers;
+    [lvs, lve, mvs, mve] = deal(NaN(size(lat_emap)));
+    for i = 1:64
+        if ismember(i, lat_emap)
+            [ii,ij] = find(lat_emap == i);
+            lvs(ii,ij) = dt_idx_init(i);
+            lve(ii,ij) = dt_idx_end(i);
+        elseif ismember(i, med_emap)
+            [ii,ij] = find(med_emap == i);
+            mvs(ii,ij) = dt_idx_init(i);
+            mve(ii,ij) = dt_idx_end(i);
+        end
+    end
+
+    % Assign to cell
+    lat_values_start{pi} = lvs;
+    lat_values_end{pi} = lve;
+    med_values_start{pi} = mvs;
+    med_values_end{pi} = mve;
+
+    % Compute MoransI
+    [mi_i_vals(pi, 1), mi_p_vals(pi, 1)] = MoransI(lvs, "distance", "num_perms", num_perms, 'size', 5, 'test_side', 'right');
+    [mi_i_vals(pi, 2), mi_p_vals(pi, 2)] = MoransI(mvs, "distance", "num_perms", num_perms, 'size', 5, 'test_side', 'right');
+    [mi_i_vals(pi, 3), mi_p_vals(pi, 3)] = MoransI(lve, "distance", "num_perms", num_perms, 'size', 5, 'test_side', 'right');
+    [mi_i_vals(pi, 4), mi_p_vals(pi, 4)] = MoransI(mve, "distance", "num_perms", num_perms, 'size', 5, 'test_side', 'right');
+end
+
+mi_p_vals_corrected = HolmBonferroni(mi_p_vals);
+
+%% Supplementary Figure 6
 clf; 
-set(gcf, 'Units', 'Inches', 'Position', [1, 1, 3, 10]);
+set(gcf, 'Units', 'Inches', 'Position', [28, 1, 6.5, 8]);
 SetFont('Arial', 9)
 
-[ax_size_y, ax_y_val] = GetAxisCoords(num_subjects, 0.05, 0.05);
-[ax_size_x, ax_x_val] = GetAxisCoords(1, 0.05, 0.1);
-ax_y_val = flipud(ax_y_val);
+[ax_size_y, ax_y_val] = GetAxisCoords(num_subjects, 0.05, 0.05, true);
 
+ax_x_val = [.05 .35 .75];
+ax_size_x = .275;
+
+
+% Heatmaps with MoransI
 for pi = 1:num_subjects
-    axes('Position', [ax_x_val, ax_y_val(pi), ax_size_x, ax_size_y]); hold on
+    % First timepoint
+    axes('Position', [ax_x_val(1), ax_y_val(pi), ax_size_x, ax_size_y], 'XColor', 'none', 'YColor', 'none'); hold on
+        array_detect_plot(lat_values_start{pi}, SubjectColors(subject_list{pi}), 0)
+        array_detect_plot(med_values_start{pi}, SubjectColors(subject_list{pi}), 8)
+        set(gca, 'DataAspectRatio', [1 1 1], 'XLim', [0 14])
+        
+        % Add MoransI text
+        text(3, -10.5, sprintf('I = %0.2f', mi_i_vals(pi, 1)), 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
+        text(11, -10.5, sprintf('I = %0.2f', mi_i_vals(pi, 2)), 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
+
+        ylabel(subject_list{pi}, 'FontWeight', 'bold', 'Color', SubjectColors(subject_list{pi}), ...
+            'VerticalAlignment', 'top')
+
+        if pi == 1
+            title('First 250 days', 'Color', 'k')
+        elseif pi == num_subjects
+            text(3, -12, 'Lateral', 'FontWeight', 'bold', ...
+                'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
+            text(11, -12, 'Medial', 'FontWeight', 'bold', ...
+                'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
+        end
+
+
+    % Last timepoint
+    axes('Position', [ax_x_val(2), ax_y_val(pi), ax_size_x, ax_size_y], 'XColor', 'none', 'YColor', 'none'); hold on
+        array_detect_plot(lat_values_end{pi}, SubjectColors(subject_list{pi}), 0)
+        array_detect_plot(med_values_end{pi}, SubjectColors(subject_list{pi}), 8)
+        set(gca, 'DataAspectRatio', [1 1 1], 'XLim', [0 14])
+
+        % Add MoransI text
+        text(3, -10.5, sprintf('I = %0.2f', mi_i_vals(pi, 3)), 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
+        text(11, -10.5, sprintf('I = %0.2f', mi_i_vals(pi, 4)), 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
+
+        if pi == 1
+            title('Last 250 days', 'Color', 'k')
+
+            text(14.5, 0, ColorText({'Detectable', 'Undetectable'}, [SubjectColors(subject_list{pi}); [.5 .5 .5]]), ...
+                'Rotation', -90, 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'left', 'FontWeight', 'bold')
+        end
+    
+end
+
+% Number of detectable electrodes
+for pi = 1:num_subjects
+    axes('Position', [ax_x_val(3), ax_y_val(pi), .2, ax_size_y]); hold on
 
     % Get functional indices for first and last time point
     dt_idx_1 = DetectionAnalysis.disabled_electrodes{pi}(:,1);
     dt_idx_end = DetectionAnalysis.disabled_electrodes{pi}(:,DetectionAnalysis.term_idx(pi));
 
     % Counts
-    Swarm(1, sum(dt_idx_1 & dt_idx_end), SubjectColors(subject_list{pi}), ...
-        'DS', 'Bar', 'swarm_point_limit', 0)
-    Swarm(2, sum(dt_idx_1 & ~dt_idx_end), SubjectColors(subject_list{pi}), ...
-        'DS', 'Bar', 'swarm_point_limit', 0)
-    Swarm(3, sum(dt_idx_end & ~dt_idx_1), SubjectColors(subject_list{pi}), ...
-        'DS', 'Bar', 'swarm_point_limit', 0)
+    Swarm(1, sum(dt_idx_1 & dt_idx_end), 'color', SubjectColors(subject_list{pi}), ...
+        'distribution_style', 'Bar', 'swarm_point_limit', 0, 'distribution_method', 'None')
+    Swarm(2, sum(dt_idx_1 & ~dt_idx_end), 'color', SubjectColors(subject_list{pi}), ...
+        'distribution_style', 'Bar', 'swarm_point_limit', 0, 'distribution_method', 'None')
+    Swarm(3, sum(dt_idx_end & ~dt_idx_1), 'color', SubjectColors(subject_list{pi}), ...
+        'distribution_style', 'Bar', 'swarm_point_limit', 0, 'distribution_method', 'None')
 
     % Format
     set(gca, 'XLim', [.5 3.5], ...
@@ -387,13 +475,22 @@ for pi = 1:num_subjects
              'YTick', [0:16:64], ...
              'XTickLabels', {}, ...
              'TickDir', 'out')
+
+    if pi == 3
+        ylabel('Number of Detectable Electrodes')
+    end
 end
 
-set(gca, 'XTickLabels', {sprintf('1^{st} %s n^{th}', GetUnicodeChar('Union')), ... 
-     '1^{st} ~ n^{th}', 'n^{th} ~ 1^{st}'})
+text(1, -3, {'Both First';'and Last'}, 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
+text(2, -3, {'First';'Only'}, 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
+text(3, -3, {'Last';'Only'}, 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
+
+annotation("textbox", [0.025 0.96 0.2 0.025], 'String',  'A', 'FontWeight', 'bold', 'EdgeColor', 'none')
+annotation("textbox", [0.325 0.96 0.2 0.025], 'String',  'B', 'FontWeight', 'bold', 'EdgeColor', 'none')
+annotation("textbox", [0.675 0.96 0.2 0.025],   'String',  'C', 'FontWeight', 'bold', 'EdgeColor', 'none')
 
 shg
-%export_figure3x(FigurePath, 'SuppFig7_Uggo')
+export_figure3x(FigurePath, 'SuppFig7_DetectionMaps')
 
 
 %% Helper functions
@@ -421,4 +518,27 @@ function sig_cor_plot(r,p, color)
              'XTick', [1:size(r,1)], ...
              'YLim', [-1 1])
 
+end
+
+function array_detect_plot(vals, color, offset)
+    x = offset;
+    y = 0;
+    for i = 1:size(vals, 1)
+        for j = 1:size(vals, 2)
+            % Patch top left corner clockwise
+            if isnan(vals(i,j))
+                c = [.85 .85 .85];
+            elseif vals(i,j)
+                c = color;
+            else
+                c = [.5 .5 .5];
+            end
+            patch([x, x + 1, x + 1, x], [y, y, y-1, y-1], c, ...
+                'LineWidth', 1, 'EdgeColor', 'w', 'FaceAlpha', 1);
+            x = x + 1;
+        end
+        % Reset column counter
+        x = offset;
+        y = y - 1;
+    end
 end
