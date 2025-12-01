@@ -404,8 +404,8 @@ SetFont('Arial', 9)
 
 [ax_size_y, ax_y_val] = GetAxisCoords(num_subjects, 0.05, 0.05, true);
 
-ax_x_val = [.05 .35 .75];
-ax_size_x = .275;
+ax_x_val = [.05 .35 .73];
+ax_size_x = .27;
 
 
 % Heatmaps with MoransI
@@ -454,7 +454,7 @@ end
 
 % Number of detectable electrodes
 for pi = 1:num_subjects
-    axes('Position', [ax_x_val(3), ax_y_val(pi), .2, ax_size_y]); hold on
+    axes('Position', [ax_x_val(3), ax_y_val(pi), .25, ax_size_y]); hold on
 
     % Get functional indices for first and last time point
     dt_idx_1 = DetectionAnalysis.disabled_electrodes{pi}(:,1);
@@ -487,10 +487,10 @@ text(3, -3, {'Last';'Only'}, 'VerticalAlignment', 'top', 'HorizontalAlignment', 
 
 annotation("textbox", [0.025 0.96 0.2 0.025], 'String',  'A', 'FontWeight', 'bold', 'EdgeColor', 'none')
 annotation("textbox", [0.325 0.96 0.2 0.025], 'String',  'B', 'FontWeight', 'bold', 'EdgeColor', 'none')
-annotation("textbox", [0.675 0.96 0.2 0.025],   'String',  'C', 'FontWeight', 'bold', 'EdgeColor', 'none')
+annotation("textbox", [0.67 0.96 0.2 0.025],   'String',  'C', 'FontWeight', 'bold', 'EdgeColor', 'none')
 
 shg
-export_figure3x(FigurePath, 'SuppFig7_DetectionMaps')
+% export_figure3x(FigurePath, 'SuppFig7_DetectionMaps')
 
 
 %% Helper functions
