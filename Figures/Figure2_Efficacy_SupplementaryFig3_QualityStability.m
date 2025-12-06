@@ -38,7 +38,7 @@ ax(1) = axes('Position', [ax_xs(1), ax_ys(3), ax_w, ax_h]); hold on
 % axes('Position', [.1 .2 .35 .7]); hold on    
     for s = 1:num_subjects
         AlphaLine(DetectionAnalysis.x ./ 365, DetectionAnalysis.discretized_thresholds{s}, ...
-            SubjectColors(subject_list_alt{s}), 'LineWidth', 2, 'IgnoreNan', 1)
+             SubjectColors(subject_list_alt{s}), 'line_width', 2, 'ignore_nan', 1)
     end
     
     % Format
@@ -67,8 +67,8 @@ ax(2) = axes('Position', [ax_xs(2), ax_ys(3), ax_w, ax_h]); hold on
     for s = 1:num_subjects-1
         y = [DetectionData{s}.ThresholdDateLinReg];
         y = y(1:2:end);
-        Swarm(s, y .* 365, SubjectColors(subject_list_alt{s}), 'DistributionWidth', .35, 'DS', 'Box', 'SPL', 0, ...
-            'DLW', 1.5)
+        Swarm(s, y .* 365, 'color', SubjectColors(subject_list_alt{s}), 'distribution_width', .35, 'distribution_style', 'Box', ...
+            'swarm_point_limit', 0, 'distribution_line_width', 1.5)
     end
     set(gca, 'Ylim', [-30 45], ...
              'XTick', [1:5], ...
@@ -180,7 +180,6 @@ text(10.4, y*1.5, '10', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'cent
 text(12.4, y*1.5, '1', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
 text(16.4, y*1.5, '5', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
 
-[x,y] = GetAxisPosition(gca, 120, 100);
 leg_text = {'Touch', 'Pressure', 'Tapping', 'Poke', 'Sharp', ...
             'Vibration', 'Buzzing', 'Sparkle', 'Flutter', ...
             'Tingle', 'Itch', 'Tickle', 'Electrical', ...
@@ -189,7 +188,7 @@ tex_cols = [cols([15:-1:11],:); ...
             cols([10:-1:7],:); ...
             cols([3:1:6],:); .6 .6 .6];
 idx = [1,2,5,6,7,10,14];
-text(x,y, ColorText(leg_text(idx), tex_cols(idx,:)), 'HorizontalAlignment', 'Right', 'VerticalAlignment', 'top')
+text(1.2,1, ColorText(leg_text(idx), tex_cols(idx,:)), 'sc', 'HorizontalAlignment', 'Right', 'VerticalAlignment', 'top')
 text(5, 1.1, ColorText('P2', SubjectColors('P2')))
 text(14, 1.1, ColorText('C1', SubjectColors('C1')))
 
@@ -208,21 +207,21 @@ ax2 = axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
         motor_mask = SQAnalysis.motor_masks{pi};
 
         % Plot SNR
-        Swarm(pi-offset, SQAnalysis.SNR_slope(sensory_mask, pi), sensory_color, 'Parent', ax1, ...
-            'Sides', 'left', 'DS', 'violin', 'SPL', 0, 'DW', .35)
+        Swarm(pi-offset, SQAnalysis.SNR_slope(sensory_mask, pi), 'color', sensory_color, 'parent', ax1, ...
+            'violin_sides', 'Left', 'distribution_style', 'Violin', 'swarm_point_limit', 0, 'distribution_width', .35)
         if SQAnalysis.SNR_slope_p(pi, 1) < 0.05
             text(pi-0.15, 1, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
                 'Parent', ax1, 'FontSize', 15, 'Color', sensory_color)
         end
-        Swarm(pi+offset, SQAnalysis.SNR_slope(motor_mask, pi), motor_color, 'Parent', ax1, ...
-            'Sides', 'right', 'DS', 'violin', 'SPL', 0, 'DW', .35)
+        Swarm(pi+offset, SQAnalysis.SNR_slope(motor_mask, pi), 'color', motor_color, 'Parent', ax1, ...
+            'violin_sides', 'Right', 'distribution_style', 'Violin', 'swarm_point_limit', 0, 'distribution_width', .35)
         if SQAnalysis.SNR_slope_p(pi, 2) < 0.05
             text(pi+0.15, 1, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
                 'Parent', ax1, 'FontSize', 15, 'Color', motor_color)
         end
         % Ranksum test
         [P,H] = ranksum(SQAnalysis.SNR_slope(sensory_mask, pi), SQAnalysis.SNR_slope(motor_mask, pi));
-        P = P * 5; % Bonferroni correction
+        P = P * 5 % Bonferroni correction
         if P < 0.05
             text(pi, -1.1, '#', 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center', ...
                 'Parent', ax1, 'FontSize', 9)
@@ -230,14 +229,14 @@ ax2 = axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
         end
 
         % Plot Vpp
-        Swarm(pi-offset, SQAnalysis.Vpp_slope(sensory_mask, pi), sensory_color, 'Parent', ax2, ...
-            'Sides', 'left', 'DS', 'violin', 'SPL', 0, 'DW', .35)
+        Swarm(pi-offset, SQAnalysis.Vpp_slope(sensory_mask, pi), 'color', sensory_color, 'Parent', ax2, ...
+            'violin_sides', 'Left', 'distribution_style', 'Violin', 'swarm_point_limit', 0, 'distribution_width', .35)
         if SQAnalysis.Vpp_slope_p(pi, 1) < 0.05
             text(pi-0.15, 100, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
                 'Parent', ax2, 'FontSize', 15, 'Color', sensory_color)
         end
-        Swarm(pi+offset, SQAnalysis.Vpp_slope(motor_mask, pi), motor_color, 'Parent', ax2, ...
-            'Sides', 'right', 'DS', 'violin', 'SPL', 0, 'DW', .35)
+        Swarm(pi+offset, SQAnalysis.Vpp_slope(motor_mask, pi), 'color', motor_color, 'Parent', ax2, ...
+            'violin_sides', 'Right', 'distribution_style', 'Violin', 'swarm_point_limit', 0, 'distribution_width', .35)
         if SQAnalysis.Vpp_slope_p(pi, 2) < 0.05
             text(pi+0.15, 100, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
                 'Parent', ax2, 'FontSize', 15, 'Color', motor_color)
@@ -268,8 +267,8 @@ ax2 = axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
 axes('Position', [ax_xs(3), ax_ys(1), ax_w, ax_h]); hold on
     plot(xl, [0, 0], 'Color', [.6 .6 .6], 'LineStyle', '--')
     for pi = 1:num_subjects
-        Swarm(pi, SQAnalysis.Cln_slope(:, pi), sensory_color, ...
-            'Sides', 'both', 'DS', 'violin', 'SPL', 0, 'DW', .35)
+        Swarm(pi, SQAnalysis.Cln_slope(:, pi), 'color', sensory_color, ...
+            'violin_sides', 'Both', 'distribution_style', 'Violin', 'swarm_point_limit', 0, 'distribution_width', .35)
         if SQAnalysis.Cln_slope_p(pi) < 0.05
             text(pi, .25, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
                 'FontSize', 15, 'Color', sensory_color)
@@ -323,7 +322,7 @@ set(gcf, 'Units', 'Inches', 'Position', [1 1 6.4 4])
 % Number of surveys
 axes('Position', [ax_xs(1), ax_ys(2), ax_w, ax_h]); hold on
     for s = 1:num_subjects
-        Swarm(s, unique_surveys(s,:), 'DS', 'Bar', 'Color', SubjectColors(subject_list_alt{s}))
+        Swarm(s, unique_surveys(s,:), 'distribution_style', 'Bar', 'Color', SubjectColors(subject_list_alt{s}))
     end
 
     set(gca, 'XLim', [.5 5.5], ...
@@ -400,7 +399,7 @@ axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
         % Divided by number times any report was given
         any_resp = sum(sum(QualityData(s).Responses{:,3:end} > 0, 2) > 0);
         Swarm(s, pain_resp / any_resp * 100 ,...
-            'DS', 'Bar', 'SPL', 0, 'Color', SubjectColors(subject_list_alt{s}))
+            'distribution_style', 'Bar', 'swarm_point_limit', 0, 'Color', SubjectColors(subject_list_alt{s}))
     end
 
     set(gca, 'XLim', [.5 5.5], ...
@@ -415,16 +414,16 @@ axes('Position', [ax_xs(3), ax_ys(1), ax_w, ax_h]); hold on
     % P3
     idx = QualityData(4).Responses.Pain > 0;
     Swarm(4, QualityData(4).Responses.Pain(idx),...
-        'DS', 'Bar', 'Color', SubjectColors('P3'), 'SPL', 0)
+        'distribution_style', 'Bar', 'Color', SubjectColors('P3'), 'swarm_point_limit', 0)
     Swarm(1, PainData.P3.uPain,...
-        'DS', 'Bar', 'Color', SubjectColors('P3'), 'SPL', 0, 'HS', '\', 'HA', 84)
+        'distribution_style', 'Bar', 'Color', SubjectColors('P3'), 'swarm_point_limit', 0, 'HS', '\', 'HA', 84)
     [p,h] = ranksum(QualityData(4).Responses.Pain(idx), PainData.P3.uPain)
     % P4
     idx = QualityData(5).Responses.Pain > 0;
     Swarm(5, QualityData(5).Responses.Pain (idx),...
-        'DS', 'Bar', 'Color', SubjectColors('P4'), 'SPL', 0)
+        'distribution_style', 'Bar', 'Color', SubjectColors('P4'), 'swarm_point_limit', 0)
     Swarm(2, PainData.P4.uPain,...
-        'DS', 'Bar', 'Color', SubjectColors('P4'), 'SPL', 0, 'HS', '\', 'HA', 84)
+        'distribution_style', 'Bar', 'Color', SubjectColors('P4'), 'swarm_point_limit', 0, 'HS', '\', 'HA', 84)
     [p,h] = ranksum(QualityData(5).Responses.Pain(idx), PainData.P4.uPain);
 
     set(gca, 'XLim', [.5 5.5], ...
