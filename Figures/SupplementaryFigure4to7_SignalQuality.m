@@ -197,10 +197,10 @@ corr_ps = mean(cat(4, corr_ps, permute(corr_ps, [2,1,3])), 4, 'omitnan');
 
 %% Supplementary Figure 5
 dt_xbin = 250;
-[ax_size_y, ax_y_val] = GetAxisCoords(2, 0.15, 0.1);
+[ax_size_y, ax_y_val] = GetAxisCoords(3, 0.15, 0.1, true);
 
 clf;
-set(gcf, 'Units', 'Inches', 'Position', [1, 1, 6.45, 4.5]);
+set(gcf, 'Units', 'Inches', 'Position', [1, 1, 6.45, 6]);
 SetFont('Arial', 9)
 colors = SubjectColors(subject_list);
 
@@ -210,7 +210,7 @@ colors = SubjectColors(subject_list);
 r = cat(1, SQAnalysis.SNR_charge_r, SQAnalysis.Vpp_charge_r, SQAnalysis.Imp_charge_r, SQAnalysis.vinter_charge_r);
 p = cat(1, SQAnalysis.SNR_charge_rp, SQAnalysis.Vpp_charge_rp, SQAnalysis.Imp_charge_rp, SQAnalysis.vinter_charge_rp);
 
-axes('Position', [ax_x_val(1), ax_y_val(2), ax_size_x, ax_size_y]); hold on; title('Charge')
+axes('Position', [ax_x_val(1), ax_y_val(1), ax_size_x, ax_size_y]); hold on; title('Charge')
     plot([.5 4.5], [0 0], 'Color', [.6 .6 .6], 'LineStyle', ':')
     for i = 1:size(r,1)
         for j = 1:num_subjects
@@ -238,7 +238,7 @@ titles = {sprintf('%sSNR', GetUnicodeChar('Delta')), ...
           sprintf('%sDT', GetUnicodeChar('Delta'))};
 yv = [1:4];
 for ax = 1:4
-    axes('Position', [ax_x_val(ax+1), ax_y_val(2), ax_size_x, ax_size_y]); hold on
+    axes('Position', [ax_x_val(ax+1), ax_y_val(1), ax_size_x, ax_size_y]); hold on
     yv_ax = yv(yv ~= ax);
     sig_cor_plot(corr_rs(ax, yv_ax,:), corr_ps(ax, yv_ax,:), colors)
     
@@ -248,11 +248,13 @@ for ax = 1:4
 end
 
 % Metric detection plots
-[ax_size_x, ax_x_val] = GetAxisCoords(4, 0.095, 0.075);
+[ax_size_x, ax_x_val] = GetAxisCoords(2, 0.125, 0.075);
+xx = [1,2,1,2];
+yy = [2,2,3,3];
 clearvars ax
 % Create axes
 for j = 1:4
-    ax(j) = axes('Position', [ax_x_val(j), ax_y_val(1), ax_size_x, ax_size_y]); hold on %#ok<SAGROW>
+    ax(j) = axes('Position', [ax_x_val(xx(j)), ax_y_val(yy(j)), ax_size_x, ax_size_y]); hold on %#ok<SAGROW>
     set(ax(j), 'XTick', [1.5:3:14.5], ...
                'XTickLabel', ColorText(subject_list, SubjectColors(subject_list)))
 end
@@ -335,7 +337,7 @@ ylabel(ax(4), 'Impedance (kOhms)')
 set(ax(4), 'YScale', 'log')
 
 text(1, 1.5, 'Detectable', 'Rotation', 90, 'HorizontalAlignment','left', 'VerticalAlignment', 'middle', 'Parent', ax(1))
-text(2.5, 1.5, 'Undetectable', 'Rotation', 90, 'HorizontalAlignment','left', 'VerticalAlignment', 'middle', 'Parent', ax(1))
+text(2, 1.5, 'Undetectable', 'Rotation', 90, 'HorizontalAlignment','left', 'VerticalAlignment', 'middle', 'Parent', ax(1))
 
 AddFigureLabels(gcf(), [.05, 0])
 % export_figure3x(FigurePath, 'SuppFig5_SQ_DT')
@@ -490,7 +492,7 @@ annotation("textbox", [0.325 0.96 0.2 0.025], 'String',  'B', 'FontWeight', 'bol
 annotation("textbox", [0.67 0.96 0.2 0.025],   'String',  'C', 'FontWeight', 'bold', 'EdgeColor', 'none')
 
 shg
-% export_figure3x(FigurePath, 'SuppFig7_DetectionMaps')
+% export_figure3x(FigurePath, 'SuppFig6_DetectionMaps')
 
 
 %% Helper functions
