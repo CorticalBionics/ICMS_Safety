@@ -416,7 +416,7 @@ for pi = 1:num_subjects
     axes('Position', [ax_x_val(1), ax_y_val(pi), ax_size_x, ax_size_y], 'XColor', 'none', 'YColor', 'none'); hold on
         array_detect_plot(lat_values_start{pi}, SubjectColors(subject_list{pi}), 0)
         array_detect_plot(med_values_start{pi}, SubjectColors(subject_list{pi}), 8)
-        set(gca, 'DataAspectRatio', [1 1 1], 'XLim', [0 14])
+        set(gca, 'DataAspectRatio', [1 1 1], 'XLim', [-.5 13.5])
         
         % Add MoransI text
         text(3, -10.5, sprintf('I = %0.2f', mi_i_vals(pi, 1)), 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
@@ -439,7 +439,7 @@ for pi = 1:num_subjects
     axes('Position', [ax_x_val(2), ax_y_val(pi), ax_size_x, ax_size_y], 'XColor', 'none', 'YColor', 'none'); hold on
         array_detect_plot(lat_values_end{pi}, SubjectColors(subject_list{pi}), 0)
         array_detect_plot(med_values_end{pi}, SubjectColors(subject_list{pi}), 8)
-        set(gca, 'DataAspectRatio', [1 1 1], 'XLim', [0 14])
+        set(gca, 'DataAspectRatio', [1 1 1], 'XLim', [-.5 13.5])
 
         % Add MoransI text
         text(3, -10.5, sprintf('I = %0.2f', mi_i_vals(pi, 3)), 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
@@ -523,6 +523,7 @@ function sig_cor_plot(r,p, color)
 end
 
 function array_detect_plot(vals, color, offset)
+    [px, py] = RoundedSquare(0.45, 1);
     x = offset;
     y = 0;
     for i = 1:size(vals, 1)
@@ -535,8 +536,8 @@ function array_detect_plot(vals, color, offset)
             else
                 c = [.5 .5 .5];
             end
-            patch([x, x + 1, x + 1, x], [y, y, y-1, y-1], c, ...
-                'LineWidth', 1, 'EdgeColor', 'w', 'FaceAlpha', 1);
+            patch(px+x, py+y, c, ...
+                'LineWidth', 1, 'EdgeColor', 'None', 'FaceAlpha', 1);
             x = x + 1;
         end
         % Reset column counter
