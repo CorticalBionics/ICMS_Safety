@@ -523,7 +523,7 @@ function sig_cor_plot(r,p, color)
 end
 
 function array_detect_plot(vals, color, offset)
-    [px, py] = RoundedSquare(0.45, 1);
+    [px, py] = RoundedSquare(.45, .25);
     x = offset;
     y = 0;
     for i = 1:size(vals, 1)
