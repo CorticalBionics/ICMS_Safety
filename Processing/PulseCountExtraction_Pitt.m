@@ -2,7 +2,7 @@
 num_electrodes = 64;
 data_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_data_combined";
 % data_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_data_oldMotor";
-output_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_out3";
+output_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_out4";
 temp = table('Size', [1, 8], ...
     'VariableNames', {'Subject', 'Date', 'PulseCount', 'CurrentCount', 'Duration', 'NumSingleElec', 'NumMultiElec', 'Waveforms'}, ...
     'VariableTypes', ["string", "datetime", "cell", "cell", "double", "double", "double", "cell"]);
@@ -25,6 +25,13 @@ for f = 1:length(flist)
         continue
     end
 
+    % Check the participant ID and load the elec map
+    if contains(fsplit{1}, 'CRS02')
+        elec_map = cc.analysis.load_participant_electrode_map(fsplit{1}(1:6));
+    else
+        elec_map = cc.analysis.load_participant_electrode_map(fsplit{1}(1:5));
+    end
+
     % create vector for number of pulses and total amplitude
     [num_pulses, total_current] = deal(zeros(num_electrodes, 1));
     total_duration = zeros(length(VMData), 1);
@@ -32,12 +39,22 @@ for f = 1:length(flist)
     
     % Running count
     for i = 1:length(VMData)
+
+        % Check for ES cable switch
+        %%%%%
         for c = 1:length(VMData(i).Channels)
             % Sometimes motor exec sends fake pulses
-            if VMData(i).Channels(c) > num_electrodes || VMData(i).Channels(c) == 0 
+            if (strcmpi(VMData(i).SessionType, 'MotorExperiments') && VMData(i).Channels(c) > num_electrodes) || ...
+                        VMData(i).Channels(c) == 0
                 continue
             end
+
+            % Check channel counting
             c_idx = VMData(i).Channels(c);
+            if c_idx > 64 % We changed from reporting cerestim output to absolute electrode number
+                c_idx = br2vm(c_idx, elec_map);
+            end
+
             num_pulses(c_idx) = num_pulses(c_idx) + sum(VMData(i).Amplitudes{c} > 0);
             total_current(c_idx) = total_current(c_idx) + sum(VMData(i).Amplitudes{c});
         end
@@ -69,4 +86,14 @@ for f = 1:length(flist)
     
     % Export
     save(fullfile(output_path, expected_fname), "data")
+end
+
+
+%% Helper function to convert new channel ids to old
+function elec = br2vm(elec, elec_map)
+    if ismember(elec, elec_map.lateral_sensory.locations)
+        elec = elec_map.lateral_sensory.numbers(elec_map.lateral_sensory.locations == elec);
+    elseif ismember(elec, elec_map.medial_sensory.locations)
+        elec = elec_map.medial_sensory.numbers(elec_map.medial_sensory.locations == elec);
+    end
 end
