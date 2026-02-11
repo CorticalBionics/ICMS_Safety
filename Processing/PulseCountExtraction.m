@@ -47,8 +47,6 @@ for s = 1:length(subject_ids)
         
         % Running count
         for i = 1:length(VMData)
-            % Check for ES cables
-            % temp = 0;
 
             for c = 1:length(VMData(i).Channels)
                 % Sometimes motor exec sends fake pulses
@@ -126,7 +124,7 @@ for f = 1:length(flist)
     end
 end
 
-subject_ids = cellfun(@(c) c(1:5), subject_ids, 'UniformOutput', false);
+subject_ids = {'BCI02', 'BCI03', 'CRS02', 'CRS07', 'CRS08'};
 
 % Export
 VMData = cat(1, data{:});

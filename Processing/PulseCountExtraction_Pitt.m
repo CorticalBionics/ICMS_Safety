@@ -1,8 +1,8 @@
 % Count the number of pulses
 num_electrodes = 64;
-data_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_data_combined";
+data_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\archive\vm_data_combined";
 % data_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_data_oldMotor";
-output_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_out4";
+output_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\archive\pulse_counts";
 temp = table('Size', [1, 8], ...
     'VariableNames', {'Subject', 'Date', 'PulseCount', 'CurrentCount', 'Duration', 'NumSingleElec', 'NumMultiElec', 'Waveforms'}, ...
     'VariableTypes', ["string", "datetime", "cell", "cell", "double", "double", "double", "cell"]);

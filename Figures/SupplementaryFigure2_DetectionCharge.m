@@ -157,8 +157,7 @@ end
 corr_coeffs_p = HolmBonferroni(corr_coeffs_p);
 all_ax = flipud(get(gcf(), 'Children')); all_ax = all_ax(7:end);
 for s = 1:num_subjects
-    [x,y] = GetAxisPosition(all_ax(s), 100, 95);
-    text(x,y, sprintf('%s', pStr(corr_coeffs_p(s))), 'Parent', all_ax(s), ...
+    text(1, .95, sprintf('%s', pStr(corr_coeffs_p(s))), 'sc', 'Parent', all_ax(s), ...
         'VerticalAlignment', 'top', 'HorizontalAlignment', 'right', 'Color', [.2 .2 .2])
 end
 
@@ -210,8 +209,7 @@ end
 corr_coeffs_p = HolmBonferroni(corr_coeffs_p);
 all_ax = flipud(get(gcf(), 'Children')); all_ax = all_ax(12:end);
 for s = 1:num_subjects-1
-    [x,y] = GetAxisPosition(all_ax(s), 95, 95);
-    text(x,y, sprintf('%s', pStr(corr_coeffs_p(s))), 'Parent', all_ax(s), ...
+    text(.95, .95, sprintf('%s', pStr(corr_coeffs_p(s))), 'sc', 'Parent', all_ax(s), ...
         'VerticalAlignment', 'top', 'HorizontalAlignment', 'right', 'Color', [.2 .2 .2])
 end
 

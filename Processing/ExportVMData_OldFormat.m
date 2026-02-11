@@ -7,7 +7,7 @@ sess_type = 'MPL_Experiments';
 %%% Folder Paths 
 baseDir = 'P:\data_raw\human\crs_array\CRS02b'; 
 baseDir = fullfile(baseDir, sess_type);
-exportDir = 'P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_data_oldMotor';
+exportDir = 'P:\users\tgh28\Experiments\Longitudinal_ICMS\archive\vm_data_oldMotor';
 
 
 %Get Folders in OpenLoopStim 
