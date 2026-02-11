@@ -6,7 +6,7 @@ output_path = "P:\users\tgh28\Experiments\Longitudinal_ICMS\vm_out4";
 temp = table('Size', [1, 8], ...
     'VariableNames', {'Subject', 'Date', 'PulseCount', 'CurrentCount', 'Duration', 'NumSingleElec', 'NumMultiElec', 'Waveforms'}, ...
     'VariableTypes', ["string", "datetime", "cell", "cell", "double", "double", "double", "cell"]);
-override = true;
+override = false;
 flist = dir(fullfile(data_path, '*.mat'));
 msg = '';
 for f = 1:length(flist)
@@ -18,11 +18,20 @@ for f = 1:length(flist)
         continue
     elseif isfile(fullfile(data_path, expected_fname))
         fsplit = strsplit(flist(f).name, '_');
-        dn = datetime([str2double(fsplit{2}), str2double(fsplit{3}), str2double(fsplit{4})]);
         load(fullfile(data_path, expected_fname));
     else
         warning('No .mat file found in %s', flist(f).name)
         continue
+    end
+    
+    % Parse the date
+    if strcmp(fsplit{2}, 'session')
+        dn = datetime([fsplit{3}, fsplit{4}, fsplit{5}(1:4)], 'InputFormat', 'MMdduuuu');
+    else
+        dn = datetime([str2double(fsplit{2}), str2double(fsplit{3}), str2double(fsplit{4})]);
+    end
+    if isnat(dn)
+        error('Could not parse date')
     end
 
     % Check the participant ID and load the elec map
@@ -49,13 +58,17 @@ for f = 1:length(flist)
         for c = 1:length(VMData(i).Channels)
             % Sometimes motor exec sends fake pulses
             if (strcmpi(VMData(i).SessionType, 'MotorExperiments') && VMData(i).Channels(c) > num_electrodes) || ...
+               (strcmpi(VMData(i).SessionType, 'Experiments') && VMData(i).Channels(c) > num_electrodes) || ...
                         VMData(i).Channels(c) == 0
                 continue
             end
 
             % Check channel counting
             c_idx = VMData(i).Channels(c);
-            if c_idx > 64 % We changed from reporting cerestim output to absolute electrode number
+            if es_flip
+                c_idx = es_channel_flip(c_idx);
+            end
+            if c_idx > num_electrodes % We changed from reporting cerestim output to absolute electrode number
                 c_idx = br2vm(c_idx, elec_map);
             end
 
