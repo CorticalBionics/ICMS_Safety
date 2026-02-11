@@ -36,12 +36,16 @@ for f = 1:length(flist)
     [num_pulses, total_current] = deal(zeros(num_electrodes, 1));
     total_duration = zeros(length(VMData), 1);
     ch_waveforms = cell(num_electrodes, 1);
+
+    % Check if ES cable switch
+    if dn > datetime('01-01-2024', 'InputFormat', 'dd-MM-uuuu') && dn < datetime('02-01-2026', 'InputFormat', 'dd-MM-uuuu')
+        es_flip = true;
+    else
+        es_flip = false;
+    end
     
     % Running count
     for i = 1:length(VMData)
-
-        % Check for ES cable switch
-        %%%%%
         for c = 1:length(VMData(i).Channels)
             % Sometimes motor exec sends fake pulses
             if (strcmpi(VMData(i).SessionType, 'MotorExperiments') && VMData(i).Channels(c) > num_electrodes) || ...
@@ -97,3 +101,4 @@ function elec = br2vm(elec, elec_map)
         elec = elec_map.medial_sensory.numbers(elec_map.medial_sensory.locations == elec);
     end
 end
+
