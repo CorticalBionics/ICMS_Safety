@@ -196,9 +196,9 @@ text(14, 1.1, ColorText('C1', SubjectColors('C1')))
 % Summary slopes
 xl = [1-.75 num_subjects+.75];
 ax1 = axes('Position', [ax_xs(1), ax_ys(1), ax_w, ax_h]); hold on
-    plot(xl, [0, 0], 'Color', [.6 .6 .6], 'LineStyle', '--')
+    plot(xl, [0, 0], 'Color', [.6 .6 .6], 'LineStyle', ':')
 ax2 = axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
-    plot(xl, [0, 0], 'Color', [.6 .6 .6], 'LineStyle', '--')
+    plot(xl, [0, 0], 'Color', [.6 .6 .6], 'LineStyle', ':')
 
     offset = 0.05;
     for pi = 1:num_subjects
@@ -208,20 +208,20 @@ ax2 = axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
 
         % Plot SNR
         Swarm(pi-offset, SQAnalysis.SNR_slope(sensory_mask, pi), 'color', sensory_color, 'parent', ax1, ...
-            'violin_sides', 'Left', 'distribution_style', 'Violin', 'swarm_point_limit', 0, 'distribution_width', .35)
+            'violin_sides', 'Left', 'distribution_style', 'Violin', 'swarm_point_limit', 0, 'distribution_width', .35, 'error_whiskers', false)
         if SQAnalysis.SNR_slope_p(pi, 1) < 0.05
             text(pi-0.15, 1, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
                 'Parent', ax1, 'FontSize', 15, 'Color', sensory_color)
         end
         Swarm(pi+offset, SQAnalysis.SNR_slope(motor_mask, pi), 'color', motor_color, 'Parent', ax1, ...
-            'violin_sides', 'Right', 'distribution_style', 'Violin', 'swarm_point_limit', 0, 'distribution_width', .35)
+            'violin_sides', 'Right', 'distribution_style', 'Violin', 'swarm_point_limit', 0, 'distribution_width', .35, 'error_whiskers', false)
         if SQAnalysis.SNR_slope_p(pi, 2) < 0.05
             text(pi+0.15, 1, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
                 'Parent', ax1, 'FontSize', 15, 'Color', motor_color)
         end
         % Ranksum test
         [P,H] = ranksum(SQAnalysis.SNR_slope(sensory_mask, pi), SQAnalysis.SNR_slope(motor_mask, pi));
-        P = P * 5 % Bonferroni correction
+        P = P * 5; % Bonferroni correction
         if P < 0.05
             text(pi, -1.1, '#', 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center', ...
                 'Parent', ax1, 'FontSize', 9)
@@ -230,13 +230,13 @@ ax2 = axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
 
         % Plot Vpp
         Swarm(pi-offset, SQAnalysis.Vpp_slope(sensory_mask, pi), 'color', sensory_color, 'Parent', ax2, ...
-            'violin_sides', 'Left', 'distribution_style', 'Violin', 'swarm_point_limit', 0, 'distribution_width', .35)
+            'violin_sides', 'Left', 'distribution_style', 'Violin', 'swarm_point_limit', 0, 'distribution_width', .35, 'error_whiskers', false)
         if SQAnalysis.Vpp_slope_p(pi, 1) < 0.05
             text(pi-0.15, 100, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
                 'Parent', ax2, 'FontSize', 15, 'Color', sensory_color)
         end
         Swarm(pi+offset, SQAnalysis.Vpp_slope(motor_mask, pi), 'color', motor_color, 'Parent', ax2, ...
-            'violin_sides', 'Right', 'distribution_style', 'Violin', 'swarm_point_limit', 0, 'distribution_width', .35)
+            'violin_sides', 'Right', 'distribution_style', 'Violin', 'swarm_point_limit', 0, 'distribution_width', .35, 'error_whiskers', false)
         if SQAnalysis.Vpp_slope_p(pi, 2) < 0.05
             text(pi+0.15, 100, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
                 'Parent', ax2, 'FontSize', 15, 'Color', motor_color)
@@ -265,7 +265,7 @@ ax2 = axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
     ylabel(ax2, sprintf('%sVpp (%sV/year)', GetUnicodeChar('Delta'), GetUnicodeChar('mu')), 'FontWeight', 'bold')
 
 axes('Position', [ax_xs(3), ax_ys(1), ax_w, ax_h]); hold on
-    plot(xl, [0, 0], 'Color', [.6 .6 .6], 'LineStyle', '--')
+    plot(xl, [0, 0], 'Color', [.6 .6 .6], 'LineStyle', ':')
     for pi = 1:num_subjects
         Swarm(pi, SQAnalysis.Cln_slope(:, pi), 'color', sensory_color, ...
             'violin_sides', 'Both', 'distribution_style', 'Violin', 'swarm_point_limit', 0, 'distribution_width', .35)
@@ -358,9 +358,9 @@ axes('Position', [ax_xs(3), ax_ys(2), ax_w, ax_h]); hold on
 for p = [1,3,4] % Other participants don't have enough sessions to plot
     xl = 1:size(QualityData(p).StabilityCorrelation.corr,2);
     AlphaLine(xl - .5, QualityData(p).StabilityCorrelation.corr, SubjectColors(subject_list_alt{p}), ...
-        'ErrorType', 'Percentiles', 'LineWidth', 2)
+        'error_type', 'Percentile', 'line_width', 2)
     AlphaLine(xl - .5, mean(QualityData(p).StabilityCorrelation.null, 3, 'omitnan'), SubjectColors(subject_list_alt{p}), ...
-        'ErrorType', 'Percentiles', 'LineStyle', '--')
+        'error_type', 'Percentile', 'line_style', '--')
 end
 
 text(8.25, 0, {'- -'; 'Shuffle'}, 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'left')
@@ -379,7 +379,7 @@ axes('Position', [ax_xs(1), ax_ys(1), ax_w, ax_h]); hold on
         x = [1:size(QualityData(s).Naturalness, 1)] - .5;
         y = QualityData(s).Naturalness;
         AlphaLine(x, y, ...
-            SubjectColors(subject_list_alt{s}), 'LineWidth', 2)
+            SubjectColors(subject_list_alt{s}), 'line_width', 2)
     end
 
     set(gca, 'XLim', [0 10], ...
@@ -416,14 +416,14 @@ axes('Position', [ax_xs(3), ax_ys(1), ax_w, ax_h]); hold on
     Swarm(4, QualityData(4).Responses.Pain(idx),...
         'distribution_style', 'Bar', 'Color', SubjectColors('P3'), 'swarm_point_limit', 0)
     Swarm(1, PainData.P3.uPain,...
-        'distribution_style', 'Bar', 'Color', SubjectColors('P3'), 'swarm_point_limit', 0, 'HS', '\', 'HA', 84)
+        'distribution_style', 'Bar', 'Color', SubjectColors('P3'), 'swarm_point_limit', 0, 'hash_style', '\', 'hash_angle', 84)
     [p,h] = ranksum(QualityData(4).Responses.Pain(idx), PainData.P3.uPain)
     % P4
     idx = QualityData(5).Responses.Pain > 0;
     Swarm(5, QualityData(5).Responses.Pain (idx),...
         'distribution_style', 'Bar', 'Color', SubjectColors('P4'), 'swarm_point_limit', 0)
     Swarm(2, PainData.P4.uPain,...
-        'distribution_style', 'Bar', 'Color', SubjectColors('P4'), 'swarm_point_limit', 0, 'HS', '\', 'HA', 84)
+        'distribution_style', 'Bar', 'Color', SubjectColors('P4'), 'swarm_point_limit', 0, 'hash_style', '\', 'hash_angle', 84)
     [p,h] = ranksum(QualityData(5).Responses.Pain(idx), PainData.P4.uPain);
 
     set(gca, 'XLim', [.5 5.5], ...

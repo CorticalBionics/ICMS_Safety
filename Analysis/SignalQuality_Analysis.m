@@ -231,7 +231,7 @@ SQAnalysis.total_charge = total_charge;
 
 save(fullfile(DataPath, 'SQ_Analysis'), "SQAnalysis")
 
-
+return
 %% Helper functions
 function slope = nan_regression(x, y)
     slope = NaN;
