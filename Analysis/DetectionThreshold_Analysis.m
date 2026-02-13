@@ -20,8 +20,6 @@ for s = 1:length(DetectionData)
     g1{s} = repelem(s, length(slopes_all{s}), 1);
     fprintf('%s mean DT slope = %0.2f\n', subject_list_alt{s}, median(slopes_all{s}, 'omitnan') .* 365)
 end
-fprintf('Grand mean DT slope = %0.2f\n', mean(cat(1, slopes_all{:}), 'omitnan') * 365)
-anova_tab = anovan(cat(1, slopes_all{:}), cat(1, g1{:}));
 
 % Format the slopes
 dt_slopes = NaN(64, num_subjects);
@@ -34,6 +32,8 @@ for s = 1:num_subjects
         dt_slopes(i,s) = slopes_all{s}(ch_idx);
     end
 end
+
+anova(dt_slopes)
 
 
 %% Analyze detection thresholds
