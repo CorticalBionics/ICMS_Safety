@@ -1,6 +1,6 @@
 load(fullfile(DataPath, 'CleaningData'));
 load(fullfile(DataPath, 'VMData_All.mat')); 
-[subject_list, num_part] = GetSubjectList(true);
+[u_part, num_part] = GetSubjectList(true);
 num_channels = 64;
 
 % Remove data from the first two years from P2 (different monitoring system)
@@ -91,7 +91,7 @@ for s = 1:3
             y = cat(2, [cleaning_data{p}(idx).(fnames{s})]);
         end
         y = movmedian(y, 10, 2, 'omitmissing');
-        AlphaLine(x, y, SubjectColors(u_part{p}), 'ErrorType', 'Percentile', 'Percentiles', [25, 75])
+        AlphaLine(x, y, SubjectColors(u_part{p}), 'error_type', 'Percentile', 'percentiles', [25, 75])
     end
     set(gca, 'YLim', yl(s,:), ...
              'XLim', [datetime('2015', 'Format', 'uuuu'), datetime('2025', 'Format', 'uuuu')])

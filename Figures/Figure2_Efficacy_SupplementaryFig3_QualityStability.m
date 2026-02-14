@@ -268,7 +268,7 @@ axes('Position', [ax_xs(3), ax_ys(1), ax_w, ax_h]); hold on
     plot(xl, [0, 0], 'Color', [.6 .6 .6], 'LineStyle', ':')
     for pi = 1:num_subjects
         Swarm(pi, SQAnalysis.Cln_slope(:, pi), 'color', sensory_color, ...
-            'violin_sides', 'Both', 'distribution_style', 'Violin', 'swarm_point_limit', 0, 'distribution_width', .35)
+            'violin_sides', 'Both', 'distribution_style', 'Violin', 'swarm_point_limit', 0, 'distribution_width', .35, 'error_whiskers', false)
         if SQAnalysis.Cln_slope_p(pi) < 0.05
             text(pi, .25, '*', 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'center', ...
                 'FontSize', 15, 'Color', sensory_color)

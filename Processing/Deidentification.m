@@ -38,7 +38,7 @@ clearvars -except implant_dates num_subjects
 load(fullfile(DataPath, 'CleaningData'));
 for pi = 1:num_subjects
     for i = 1:size(cleaning_data{pi}, 2)
-        cleaning_data{pi}(i).date = days(cleaning_data{pi}(i).date- implant_dates(pi));
+        cleaning_data{pi}(i).date = days(cleaning_data{pi}(i).date - implant_dates(pi));
     end
 end
 

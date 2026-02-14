@@ -193,7 +193,7 @@ end
 
 
 %% Convert to participant:date format and save
-clearvars -except output_path subject_ids
+clearvars -except output_path subject_ids num_electrodes
 disp('Consolidating')
 
 u_part = unique(cellfun(@(c) c(1:5), subject_ids, 'UniformOutput', false));
@@ -202,8 +202,9 @@ flist = dir(fullfile(output_path, '*.mat'));
 flist = {flist.name};
 
 for p = 1:length(u_part)
+    disp(u_part(p))
     % Filter files by participant
-    p_idx = find(contains(flist, u_part(p)));
+    p_idx = find(contains(flist, u_part{p}));
     % Load data for each subject
     temp_data = cell(size(p_idx));
     for d = 1:length(p_idx)
@@ -218,6 +219,34 @@ for p = 1:length(u_part)
         end
     end
     temp_data = cat(2, temp_data{:});
+
+    % Check for ES cable flip
+    if contains(u_part{p}, 'CRS')
+        for i = 1:size(temp_data, 2)
+            dn = datetime(temp_data(i).Date, 'InputFormat', 'dd-MMM-uuuu');
+            if dn > datetime('01-01-2024', 'InputFormat', 'dd-MM-uuuu') && dn < datetime('02-01-2026', 'InputFormat', 'dd-MM-uuuu')
+                new_channels = zeros(size(temp_data(i).channels));
+                for c = 1:length(temp_data(i).channels)
+                    new_channels(c) = es_channel_flip(temp_data(i).channels(c));
+                end
+                % Update channels and indices for each one
+                old_idx = temp_data(i).channels;
+                [new_vmin, new_vmax, new_vinter] = deal(NaN(num_electrodes, 1));
+                new_vmin(new_channels) = temp_data(i).vmin(old_idx);
+                new_vmax(new_channels) = temp_data(i).vmax(old_idx);
+                new_vinter(new_channels) = temp_data(i).vinter(old_idx);
+                new_wvf = cell(num_electrodes,1);
+                new_wvf(new_channels) = temp_data(i).waveform(old_idx);
+
+                % Overwrite
+                temp_data(i).channels = new_channels;
+                temp_data(i).vmin = new_vmin;
+                temp_data(i).vmax = new_vmax;
+                temp_data(i).vinter = new_vinter;
+                temp_data(i).waveform = new_wvf;
+            end
+        end
+    end
 
     % Combine values within day
     date_list = [temp_data.Date];

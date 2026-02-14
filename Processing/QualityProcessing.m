@@ -76,4 +76,15 @@ for f = 1:length(flist)
     end
 end
 
+%% ES cable fixes
+for p = 3:5
+    for i = 1:height(QualityData(p).Responses)
+        dn = QualityData(p).Responses{i, "Date"};
+        if dn > datetime('01-01-2024', 'InputFormat', 'dd-MM-uuuu') && dn < datetime('02-01-2026', 'InputFormat', 'dd-MM-uuuu')
+            QualityData(p).Responses{i, "channel"} = es_channel_flip(QualityData(p).Responses{i, "channel"});
+        end
+    end
+end
+
+
 save(fullfile(DataPath, 'QualityData'), "QualityData")
