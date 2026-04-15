@@ -16,6 +16,7 @@ for i = 1:num_subjects
 end
 
 num_perms = 1e3;
+min_surveys = 10;
 % Discretize and compute naturalness and quality frequency per year
 for i = 1:num_subjects
     % Discretize to years
@@ -87,7 +88,7 @@ for i = 1:num_subjects
         r = r(mask);
         for j = 1:y_max
             idx = dy < j & dy > j - 1;
-            if sum(idx) < 10 % Only take average of high N
+            if sum(idx) < min_surveys % Only take average of high N
                 continue
             end
             qual_corr_mat(c,j) = mean(r(idx), 'omitnan');

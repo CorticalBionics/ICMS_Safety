@@ -18,6 +18,42 @@ palm_thick = uint8(repmat(~palm_thick,[1,1,3])) .* 255;
 % All pixels included in the palmar mask used, just don't want to add the dependencies to calculate this
 total_palm_pixels = 410624;
 
+% Color for each quality
+qual_cols = [...
+            % Orange/teal
+            rgb(255, 193, 7); ... % Hot
+            rgb(0, 150, 136); ... % Cold
+            % Reds
+            rgb(198, 40, 40); ... % Paresthesia-Tingle
+            rgb(229, 57, 53); ... % Paresthesia-Itch
+            rgb(239, 83, 80); ... % Paresthesia-Tickle
+            rgb(239, 154, 154); ... % Paresthesia-Electrical
+            % Purples
+            rgb(206, 147, 216); ... % Movement-Flutter
+            rgb(171, 71, 188); ... % Movement-Sparkle
+            rgb(171, 71, 188); ... % Movement-Buzzing
+            rgb(106, 27, 154); ... % Movement-Vibration
+            % Blues
+            rgb(33, 150, 243); ... % Mechanical-Sharp
+            rgb(159, 168, 218); ... % Mechanical-Poke
+            rgb(63, 81, 181); ... % Mechanical-Tapping
+            rgb(21, 101, 192); ... % Mechanical-Pressure
+            rgb(40, 53, 147); ... % Mechanical-Touch
+            ];
+
+leg_text = {'Touch', 'Pressure', 'Tapping', 'Poke', 'Sharp', ...
+            'Vibration', 'Buzzing', 'Sparkle', 'Flutter', ...
+            'Tingle', 'Itch', 'Tickle', 'Electrical', ...
+            'Other'};
+tex_cols = [qual_cols([15:-1:11],:); ...
+            qual_cols([10:-1:7],:); ...
+            qual_cols([3:1:6],:); .6 .6 .6];
+
+
+% Compute quality stability stats
+for i = [1,3,4]
+    [r,p] = corr(QualityData(i).Frequency');
+end
 
 %% Figure 2
 SetFont('Arial', 9)
@@ -35,7 +71,6 @@ set(gcf, 'Units', 'Inches', 'Position', [1 1 6.4 6.5])
 
 % Detection thresholds
 ax(1) = axes('Position', [ax_xs(1), ax_ys(3), ax_w, ax_h]); hold on
-% axes('Position', [.1 .2 .35 .7]); hold on    
     for s = 1:num_subjects
         AlphaLine(DetectionAnalysis.x ./ 365, DetectionAnalysis.discretized_thresholds{s}, ...
              SubjectColors(subject_list_alt{s}), 'line_width', 2, 'ignore_nan', 1)
@@ -99,66 +134,47 @@ ax(3) = axes('Position', [ax_xs(3), ax_ys(3), ax_w, ax_h]); hold on
     fprintf("Percent of max = %0.2f +/- %0.1f\n", mean(pct_of_max), std(pct_of_max))
 
 % Coverage hand maps
-% P2 Timepoint 1
+annotation("textbox", [0.02 .565 .05 .05], 'String', 'P2', ...
+    'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold', 'Color', SubjectColors(subject_list_alt{3}))
+% P2 Year 1
     p = [0.025, ax_ys(2)+ax_h/2 0.15, ax_h / 2];
-    s = 3; t = 1;
+    s = 3; [~,t] = min(abs(DetectionAnalysis.x - (365*1)));
     mini_hand_map(palm_thick, SurveyData, DetectionAnalysis.disabled_electrodes, subject_list, p, s, t)
     title('Year 1')
 
-% P2 Timepoint 2
+% P2 Year 5
     p = [0.165, ax_ys(2)+ax_h/2, 0.15, ax_h / 2];
-    s = 3; t = floor(length(DetectionAnalysis.x) / 2);
+    s = 3; [~,t] = min(abs(DetectionAnalysis.x - (365*5)));
     mini_hand_map(palm_thick, SurveyData, DetectionAnalysis.disabled_electrodes, subject_list, p, s, t)
     title('Year 5')
 
-% P2 Timepoint 3
+% P2 Year 10
     p = [0.305, ax_ys(2)+ax_h/2, 0.15, ax_h / 2];
-    s = 3; t = length(DetectionAnalysis.x);
+    s = 3; [~,t] = min(abs(DetectionAnalysis.x - (365*10)));
     mini_hand_map(palm_thick, SurveyData, DetectionAnalysis.disabled_electrodes, subject_list, p, s, t)
     title('Year 10')
 
-% C1 Timepoint 1
+annotation("textbox", [0.02 .435 .05 .05], 'String', 'C1', ...
+    'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold', 'Color', SubjectColors(subject_list_alt{1}))
+% C1 Year 1
     p = [0.025, ax_ys(2)-ax_h/10, 0.15, ax_h / 2];
-    s = 1; t = 1;
+    s = 1; [~,t] = min(abs(DetectionAnalysis.x - (365*1)));
     mini_hand_map(palm_thick, SurveyData, DetectionAnalysis.disabled_electrodes, subject_list, p, s, t)
 
-% C1 Timepoint 2
+% C1 Year 5
     p = [0.165, ax_ys(2)-ax_h/10, 0.15, ax_h / 2];
-    s = 1; t = floor(length(DetectionAnalysis.x) / 2) - 1;
+    s = 1; t = 7; % ~4.75 years
     mini_hand_map(palm_thick, SurveyData, DetectionAnalysis.disabled_electrodes, subject_list, p, s, t)
 
 
 % Quality frequency bar charts
-% Color for each quality
-cols = [...
-        % Orange/teal
-        rgb(255, 193, 7); ... % Hot
-        rgb(0, 150, 136); ... % Cold
-        % Reds
-        rgb(198, 40, 40); ... % Paresthesia-Tingle
-        rgb(229, 57, 53); ... % Paresthesia-Itch
-        rgb(239, 83, 80); ... % Paresthesia-Tickle
-        rgb(239, 154, 154); ... % Paresthesia-Electrical
-        % Purples
-        rgb(206, 147, 216); ... % Movement-Flutter
-        rgb(171, 71, 188); ... % Movement-Sparkle
-        rgb(171, 71, 188); ... % Movement-Buzzing
-        rgb(106, 27, 154); ... % Movement-Vibration
-        % Blues
-        rgb(33, 150, 243); ... % Mechanical-Sharp
-        rgb(159, 168, 218); ... % Mechanical-Poke
-        rgb(63, 81, 181); ... % Mechanical-Tapping
-        rgb(21, 101, 192); ... % Mechanical-Pressure
-        rgb(40, 53, 147); ... % Mechanical-Touch
-        ];
 x = 1;
 xt = [];
 xtl = {};
 % P2
 axes('Position', [0.5, ax_ys(2), 0.41, ax_h]); hold on
-[x, xt, xtl] = quality_freq_bar(QualityData(3).Frequency, cols, x, xt, xtl);
-[x, xt, xtl] = quality_freq_bar(QualityData(1).Frequency, cols, x + 1, xt, xtl);
-
+[x, xt, xtl] = quality_freq_bar(QualityData(3).Frequency, qual_cols, x, xt, xtl);
+[x, xt, xtl] = quality_freq_bar(QualityData(1).Frequency, qual_cols, x + 1, xt, xtl);
 
 set(gca, 'XLim', [.5, x+.2], ...
          'YTick', [0, 1], ...
@@ -180,13 +196,6 @@ text(10.4, y*1.5, '10', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'cent
 text(12.4, y*1.5, '1', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
 text(16.4, y*1.5, '5', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
 
-leg_text = {'Touch', 'Pressure', 'Tapping', 'Poke', 'Sharp', ...
-            'Vibration', 'Buzzing', 'Sparkle', 'Flutter', ...
-            'Tingle', 'Itch', 'Tickle', 'Electrical', ...
-            'Other'};
-tex_cols = [cols([15:-1:11],:); ...
-            cols([10:-1:7],:); ...
-            cols([3:1:6],:); .6 .6 .6];
 idx = [1,2,5,6,7,10,14];
 text(1.2,1, ColorText(leg_text(idx), tex_cols(idx,:)), 'sc', 'HorizontalAlignment', 'Right', 'VerticalAlignment', 'top')
 text(5, 1.1, ColorText('P2', SubjectColors('P2')))
@@ -308,8 +317,6 @@ return
 
 
 %% Supplementary Figure 3
-[ax_w, ax_xs] = GetAxisCoords(3, .1, .075);
-[ax_h, ax_ys] = GetAxisCoords(2, .125, .1); ax_ys(2) = ax_ys(2) + .025;
 
 xt10 = [0:10];
 xtl10 = sparse_xticklabels(xt10);
@@ -318,9 +325,9 @@ xt8 = [0:8];
 xtl8 = sparse_xticklabels(xt8);
 
 clf; 
-set(gcf, 'Units', 'Inches', 'Position', [1 1 6.4 4])
+set(gcf, 'Units', 'Inches', 'Position', [28 1 6.4 6])
 % Number of surveys
-axes('Position', [ax_xs(1), ax_ys(2), ax_w, ax_h]); hold on
+axes('Position', [.075, .725, .175, .225]); hold on
     for s = 1:num_subjects
         Swarm(s, unique_surveys(s,:), 'distribution_style', 'Bar', 'Color', SubjectColors(subject_list_alt{s}))
     end
@@ -331,8 +338,48 @@ axes('Position', [ax_xs(1), ax_ys(2), ax_w, ax_h]); hold on
              'YLim', [0 70])
     ylabel('# Surveys')
 
+xo = 0.14;
+yo = 0.125;
+xw = 0.175;
+ah = 0.11;
+xs = 0.3;
+ys = 0.85;
+% C2 Hand Coverage
+s = 2;
+% Year 1
+p = [xs, ys xw, ah];
+mini_hand_map(palm_thick, SurveyData, DetectionAnalysis.disabled_electrodes, subject_list, p, s, 1)
+y = ylabel('First Year', 'Color', 'k', 'FontWeight', 'bold'); y.Position(1) = y.Position(1) + 300;
+
+% Year 2
+p = [xs, ys-yo xw, ah];
+mini_hand_map(palm_thick, SurveyData, DetectionAnalysis.disabled_electrodes, subject_list, p, s, 4)
+y = ylabel('Last Year', 'Color', 'k', 'FontWeight', 'bold'); y.Position(1) = y.Position(1) + 300;
+xlabel('C2', 'Color', SubjectColors('C2'), 'VerticalAlignment', 'bottom')
+% P3 Hand Coverage
+s = 4;
+% Year 1
+p = [xs + xo, ys xw, ah];
+mini_hand_map(palm_thick, SurveyData, DetectionAnalysis.disabled_electrodes, subject_list, p, s, 1)
+% Year 5
+p = [xs + xo, ys-yo xw, ah];
+[~,t] = min(abs(DetectionAnalysis.x - (365*4)));
+mini_hand_map(palm_thick, SurveyData, DetectionAnalysis.disabled_electrodes, subject_list, p, s, 6)
+xlabel('P3', 'Color', SubjectColors('P3'), 'VerticalAlignment', 'bottom')
+
+% P4 Hand Coverage
+s = 5;
+% Year 1
+p = [xs + xo*2, ys xw, ah];
+mini_hand_map(palm_thick, SurveyData, DetectionAnalysis.disabled_electrodes, subject_list, p, s, 1)
+% Year 2
+p = [xs + xo*2, ys-yo xw, ah];
+mini_hand_map(palm_thick, SurveyData, DetectionAnalysis.disabled_electrodes, subject_list, p, s, 2)
+xlabel('P4', 'Color', SubjectColors('P4'), 'VerticalAlignment', 'bottom')
+
+
 % Relative coverage
-axes('Position', [ax_xs(2), ax_ys(2), ax_w, ax_h]); hold on
+axes('Position', [.8, .725, .175, .225]); hold on
     for s = 1:num_subjects
         prop_hand = zeros(DetectionAnalysis.term_idx(s), 1);
         for t = 1:DetectionAnalysis.term_idx(s)
@@ -346,15 +393,58 @@ axes('Position', [ax_xs(2), ax_ys(2), ax_w, ax_h]); hold on
             'Color', SubjectColors(subject_list_alt{s}), 'LineWidth', 2);
     end
     
-    ylabel('Relative Coverage')
+    ylabel('Rel. Coverage', 'VerticalAlignment', 'top')
     xlabel('Years from Implant')
     set(gca, 'XTick', xt10, ...
              'XTickLabel', xtl10, ...
              'XTickLabelRotation', 0, ...
-             'YLim', [0.5 1])
+             'YLim', [0.5 1], ...
+             'YTick', [.5 1])
+
+
+% Quality frequency
+axes('Position', [.075, .3875, .5, .225]); hold on
+x = 1;
+xt = [];
+xtl = {};
+[x, xt, xtl] = quality_freq_bar(QualityData(2).Frequency, qual_cols, x, xt, xtl);
+[x, xt, xtl] = quality_freq_bar(QualityData(4).Frequency, qual_cols, x + 1, xt, xtl);
+[x, xt, xtl] = quality_freq_bar(QualityData(5).Frequency, qual_cols, x + 1, xt, xtl);
+
+set(gca, 'XLim', [.5, x+.2], ...
+         'YTick', [0, 1], ...
+         'YLim', [0 1], ...
+         'XColor', 'none', ...
+         'Clipping', 'off')
+xl = xlabel('Years from Implant', 'VerticalAlignment', 'top', 'Color', 'k'); xl.Position(2) = xl.Position(2) - 0.05;
+ylabel('Quality Frequency', 'VerticalAlignment', 'middle')
+
+% Fake x-axis
+y = -0.05;
+plot([1, 2.8], [y y], 'Color', 'k', 'LineWidth', 1)
+plot([4, 7.8], [y y], 'Color', 'k', 'LineWidth', 1)
+plot([9, 10.8], [y y], 'Color', 'k', 'LineWidth', 1)
+
+for i = [1:2, 4:7, 9:10] + 0.4
+    plot([i,i], [y, y+abs(y/3)], 'Color', 'k')
+end
+text(1.4, y*1.5, '1', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
+text(2.4, y*1.5, '2', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
+text(4.4, y*1.5, '1', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
+text(7.4, y*1.5, '4', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
+text(9.4, y*1.5, '1', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
+text(10.4, y*1.5, '2', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
+
+idx = [1,2,4,5,6,7,10,14];
+text(1.175,1, ColorText(leg_text(idx), tex_cols(idx,:)), 'sc', 'HorizontalAlignment', 'Right', 'VerticalAlignment', 'top')
+
+text(1.5, 1.1, ColorText('C2', SubjectColors('C2')))
+text(5.5, 1.1, ColorText('P3', SubjectColors('P3')))
+text(9.5, 1.1, ColorText('P4', SubjectColors('P4')))
+
 
 % Quality stability
-axes('Position', [ax_xs(3), ax_ys(2), ax_w, ax_h]); hold on
+axes('Position', [.775, .3875, .2, .225]); hold on
 for p = [1,3,4] % Other participants don't have enough sessions to plot
     xl = 1:size(QualityData(p).StabilityCorrelation.corr,2);
     AlphaLine(xl - .5, QualityData(p).StabilityCorrelation.corr, SubjectColors(subject_list_alt{p}), ...
@@ -363,10 +453,11 @@ for p = [1,3,4] % Other participants don't have enough sessions to plot
         'error_type', 'Percentile', 'line_style', '--')
 end
 
-text(8.25, 0, {'- -'; 'Shuffle'}, 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'left')
+% text(8.25, 0, {'- -'; 'Shuffle'}, 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'left')
+text(.65, .1, 'Shuffle', 'sc', 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center')
 
 ylabel("Correlation (r)")
-xlabel('Time between Surveys (years)')
+xlabel(sprintf('%s years', GetUnicodeChar('Delta')))
 set(gca, 'XLim', [0, max(xt8)], ...
          'XTick', xt8, ...
          'XTickLabel', xtl8, ...
@@ -374,7 +465,7 @@ set(gca, 'XLim', [0, max(xt8)], ...
 
 
 % Naturalness
-axes('Position', [ax_xs(1), ax_ys(1), ax_w, ax_h]); hold on
+axes('Position', [0.075, .05, .225, .225]); hold on
     for s = 1:num_subjects
         x = [1:size(QualityData(s).Naturalness, 1)] - .5;
         y = QualityData(s).Naturalness;
@@ -392,13 +483,13 @@ axes('Position', [ax_xs(1), ax_ys(1), ax_w, ax_h]); hold on
              'XTickLabelRotation', 0)
 
 % Pain frequency
-axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
+axes('Position', [.4125, .05, .225, .225]); hold on
     for s = 1:num_subjects
         % Number of pain reports
         pain_resp = sum(QualityData(s).Responses.Pain > 0);
         % Divided by number times any report was given
         any_resp = sum(sum(QualityData(s).Responses{:,3:end} > 0, 2) > 0);
-        Swarm(s, pain_resp / any_resp * 100 ,...
+        Swarm(s, pain_resp / any_resp * 100, 'distribution_method', 'None', ...
             'distribution_style', 'Bar', 'swarm_point_limit', 0, 'Color', SubjectColors(subject_list_alt{s}))
     end
 
@@ -409,15 +500,15 @@ axes('Position', [ax_xs(2), ax_ys(1), ax_w, ax_h]); hold on
     ylabel('Pain Reported (%)')
 
 % Pain rating
-axes('Position', [ax_xs(3), ax_ys(1), ax_w, ax_h]); hold on
+axes('Position', [.75, .05, .225, .225]); hold on
     % Stim related
     % P3
     idx = QualityData(4).Responses.Pain > 0;
     Swarm(4, QualityData(4).Responses.Pain(idx),...
         'distribution_style', 'Bar', 'Color', SubjectColors('P3'), 'swarm_point_limit', 0)
-    Swarm(1, PainData.P3.uPain,...
+    Swarm(1, PainData.P3.uPain, ...
         'distribution_style', 'Bar', 'Color', SubjectColors('P3'), 'swarm_point_limit', 0, 'hash_style', '\', 'hash_angle', 84)
-    [p,h] = ranksum(QualityData(4).Responses.Pain(idx), PainData.P3.uPain)
+    [p,h] = ranksum(QualityData(4).Responses.Pain(idx), PainData.P3.uPain);
     % P4
     idx = QualityData(5).Responses.Pain > 0;
     Swarm(5, QualityData(5).Responses.Pain (idx),...
@@ -431,13 +522,33 @@ axes('Position', [ax_xs(3), ax_ys(1), ax_w, ax_h]); hold on
              'XTickLabel', {'Baseline', 'Stim'})
     ylabel('Pain Rating')
 
-AddFigureLabels(gcf, [0.05 -0.015])
+
+% Labels
+char_offset = 64;
+annotation("textbox", [0.025 .93 .05 .05], 'String', char(char_offset+1), ...
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
+annotation("textbox", [0.3 .93 .05 .05], 'String', char(char_offset+2), ...
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
+annotation("textbox", [0.74 .93 .05 .05], 'String', char(char_offset+3), ...
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
+annotation("textbox", [0.025 .6125 .05 .05], 'String', char(char_offset+4), ...
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
+annotation("textbox", [0.72 .6125 .05 .05], 'String', char(char_offset+5), ...
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
+annotation("textbox", [0.025 .2675 .05 .05], 'String', char(char_offset+6), ...
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
+annotation("textbox", [0.35 .2675 .05 .05], 'String', char(char_offset+7), ...
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
+annotation("textbox", [0.7 .2675 .05 .05], 'String', char(char_offset+8), ...
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
+
+% AddFigureLabels(gcf, [0.05 -0.015])
 % export_figure3x(FigurePath, 'SuppFig3_QualityStability')
 shg
 
 %% Functions
 function mini_hand_map(palm_thick, SurveyData, disabled_electrodes, subjects, p, s, t)
-    palm_ax = axes('Position', p); hold on
+    palm_ax = axes('Position', p, 'Color', 'None'); hold on
     imshow(palm_thick)
 
     overlay_ax = axes('Position', gca().Position);
