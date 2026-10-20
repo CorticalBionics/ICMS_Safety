@@ -10,12 +10,11 @@ for f = 1:length(flist)
     QualityData(f).Subject = flist(f).name(1:2);
 
     % covert new hot/cold temperature scores to normal temperature scores
-    % (0=cold, 10=hot)
-    hot_idx = find(temp.resp_data(:,30)>5);
-    temp.resp_data(hot_idx,31) = (((temp.resp_data(hot_idx,30)-5)/5)*10); %(hot = 5-10 temperature)
-    cold_idx = find(temp.resp_data(:,30)<=5 & temp.resp_data(:,30) > 0);
-    temp.resp_data(cold_idx,32) = ((temp.resp_data(cold_idx,30)/5)*10); %(cold = 0-5 temperature)
-    temp.resp_data(:,30) = []; % delete temperature intensity, keep hot and cold
+    % (0=cold, 10=hot) We will assume 4 < x < 6 is neutral temperature here
+    hot_idx = find(temp.resp_data(:,30)>=6);
+    temp.resp_data(hot_idx,31) = rescale(temp.resp_data(hot_idx,30), 'InputMin', 5, 'InputMax', 10);
+    cold_idx = find(temp.resp_data(:,30)<=4 & temp.resp_data(:,30) > 0);
+    temp.resp_data(cold_idx,32) = rescale(temp.resp_data(cold_idx,30).*-1, 'InputMin', -5, 'InputMax', 0);
 
     % average over multiple sensations per channel
     flat_scores = [];

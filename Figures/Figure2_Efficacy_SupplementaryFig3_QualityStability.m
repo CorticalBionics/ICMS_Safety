@@ -21,8 +21,8 @@ total_palm_pixels = 410624;
 % Color for each quality
 qual_cols = [...
             % Orange/teal
-            rgb(255, 193, 7); ... % Hot
             rgb(0, 150, 136); ... % Cold
+            rgb(255, 193, 7); ... % Hot
             % Reds
             rgb(198, 40, 40); ... % Paresthesia-Tingle
             rgb(229, 57, 53); ... % Paresthesia-Itch
@@ -44,15 +44,16 @@ qual_cols = [...
 leg_text = {'Touch', 'Pressure', 'Tapping', 'Poke', 'Sharp', ...
             'Vibration', 'Buzzing', 'Sparkle', 'Flutter', ...
             'Tingle', 'Itch', 'Tickle', 'Electrical', ...
-            'Other'};
+            'Hot', 'Other'};
 tex_cols = [qual_cols([15:-1:11],:); ...
             qual_cols([10:-1:7],:); ...
-            qual_cols([3:1:6],:); .6 .6 .6];
+            qual_cols([3:1:6],:); ...
+            qual_cols(2,:); .6 .6 .6];
 
 
 % Compute quality stability stats
 for i = [1,3,4]
-    [r,p] = corr(QualityData(i).Frequency');
+    [r,p] = corr(QualityData(i).Frequency);
 end
 
 %% Figure 2
@@ -64,8 +65,8 @@ sensory_color = rgb(52, 152, 219); % Peterriver
 motor_color = rgb(46, 63, 79); % Wetasphalt
 
 set(gcf, 'Units', 'Inches', 'Position', [1 1 6.4 6.5])
-[ax_w, ax_xs] = GetAxisCoords(3, .1, .05); ax_xs = ax_xs + .025;
-[ax_h, ax_ys] = GetAxisCoords(3, .125, .05); ax_ys(1) = ax_ys(1) + 0.025;
+[ax_w, ax_xs] = GetAxisCoords(3, .1, .05);
+[ax_h, ax_ys] = GetAxisCoords(3, .125, .05, false, 0); ax_ys(1) = ax_ys(1) + 0.025;
 
 [corr_coeffs, corr_coeffs_p] = deal(NaN(num_subjects, 2));
 
@@ -196,7 +197,7 @@ text(10.4, y*1.5, '10', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'cent
 text(12.4, y*1.5, '1', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
 text(16.4, y*1.5, '5', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
 
-idx = [1,2,5,6,7,10,14];
+idx = [1,2,5,6,7,10,14,15];
 text(1.2,1, ColorText(leg_text(idx), tex_cols(idx,:)), 'sc', 'HorizontalAlignment', 'Right', 'VerticalAlignment', 'top')
 text(5, 1.1, ColorText('P2', SubjectColors('P2')))
 text(14, 1.1, ColorText('C1', SubjectColors('C1')))
@@ -454,7 +455,7 @@ for p = [1,3,4] % Other participants don't have enough sessions to plot
 end
 
 % text(8.25, 0, {'- -'; 'Shuffle'}, 'VerticalAlignment', 'middle', 'HorizontalAlignment', 'left')
-text(.65, .1, 'Shuffle', 'sc', 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center')
+text(.65, .15, 'Shuffle', 'sc', 'VerticalAlignment', 'top', 'HorizontalAlignment', 'center')
 
 ylabel("Correlation (r)")
 xlabel(sprintf('%s years', GetUnicodeChar('Delta')))
@@ -526,21 +527,21 @@ axes('Position', [.75, .05, .225, .225]); hold on
 % Labels
 char_offset = 64;
 annotation("textbox", [0.025 .93 .05 .05], 'String', char(char_offset+1), ...
-'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold', 'Color', 'k')
 annotation("textbox", [0.3 .93 .05 .05], 'String', char(char_offset+2), ...
-'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold', 'Color', 'k')
 annotation("textbox", [0.74 .93 .05 .05], 'String', char(char_offset+3), ...
-'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold', 'Color', 'k')
 annotation("textbox", [0.025 .6125 .05 .05], 'String', char(char_offset+4), ...
-'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold', 'Color', 'k')
 annotation("textbox", [0.72 .6125 .05 .05], 'String', char(char_offset+5), ...
-'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold', 'Color', 'k')
 annotation("textbox", [0.025 .2675 .05 .05], 'String', char(char_offset+6), ...
-'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold', 'Color', 'k')
 annotation("textbox", [0.35 .2675 .05 .05], 'String', char(char_offset+7), ...
-'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold', 'Color', 'k')
 annotation("textbox", [0.7 .2675 .05 .05], 'String', char(char_offset+8), ...
-'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold')
+'VerticalAlignment','top', 'HorizontalAlignment','left', 'EdgeColor', 'none', 'FontWeight','bold', 'Color', 'k')
 
 % AddFigureLabels(gcf, [0.05 -0.015])
 % export_figure3x(FigurePath, 'SuppFig3_QualityStability')
